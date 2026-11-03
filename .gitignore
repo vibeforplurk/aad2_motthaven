@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.chrome-profile/
+.selenium-profile*/
+qa-*.png
+qa-viewport.html
