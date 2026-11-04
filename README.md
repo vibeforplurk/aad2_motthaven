@@ -117,6 +117,7 @@ python serve.py 8080 --open
   "id": "i016-1",
   "code": "I016-1",
   "name": "戴維德",
+  "link": "https://example.com/character",
   "watermark": "D",
   "world": "I016",
   "lane": 2,
@@ -127,6 +128,7 @@ python serve.py 8080 --open
 
 - `id`：事件用它來引用角色，必須唯一。
 - `code`：畫面上顯示的完整代號，例如 `I016-1-C`。
+- `link`：選填；提供角色名稱的連結，支援 `http(s)`、`mailto`、`#錨點`、`/` 或 `./` 開頭的網址。外部連結會另開新視窗。
 - `watermark`：角色卡底圖文字；可填一字或自訂文字。省略時使用 `name` 的第一個字。
 - `world`：對應 `worlds[].id`。
 - `lane`：1 代表最靠近中央時間軸的欄位，2 是外側，依此類推。

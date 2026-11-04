@@ -390,6 +390,10 @@ svg {
   letter-spacing: 0.04em;
 }
 
+.char-card__name a {
+  color: inherit;
+}
+
 .char-card__role {
   margin-top: 0.1rem;
   color: var(--ink-faint);

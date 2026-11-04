@@ -51,6 +51,7 @@ class Character:
     id: str
     code: str
     name: str
+    link: str
     watermark: str
     role: str
     summary: str
@@ -355,7 +356,7 @@ def parse_characters(
 
     world_by_id = {world.id: world for world in worlds}
     parsed: list[
-        tuple[dict, str, str, str, str, str, str, str, World, int | None]
+        tuple[dict, str, str, str, str, str, str, str, str, World, int | None]
     ] = []
     seen_ids: set[str] = set()
 
@@ -369,6 +370,12 @@ def parse_characters(
             seen_ids.add(char_id)
         code = as_text(data.get("code"), f"{path}.code", problems, required=True)
         name = as_text(data.get("name"), f"{path}.name", problems, required=True)
+        link = as_text(data.get("link"), f"{path}.link", problems)
+        if link and not valid_url(link):
+            problems.error(
+                f"{path}.link",
+                "必須是 http(s)、mailto、#錨點、/ 或 ./ 開頭的連結",
+            )
         watermark = as_text(
             data.get("watermark"),
             f"{path}.watermark",
@@ -398,7 +405,7 @@ def parse_characters(
                 problems.error(f"{path}.lane", "必須是 1 以上的整數")
                 lane = None
         parsed.append(
-            (data, path, char_id, code, name, watermark, role, summary, world, lane)
+            (data, path, char_id, code, name, link, watermark, role, summary, world, lane)
         )
 
     # 先保留手動指定的 lane，再把未指定的角色補進最小的空位。
@@ -410,7 +417,19 @@ def parse_characters(
             used[world.side].add(lane)
 
     characters: list[Character] = []
-    for _data, _path, char_id, code, name, watermark, role, summary, world, lane in parsed:
+    for (
+        _data,
+        _path,
+        char_id,
+        code,
+        name,
+        link,
+        watermark,
+        role,
+        summary,
+        world,
+        lane,
+    ) in parsed:
         if lane is None:
             candidate = 1
             while candidate in used[world.side]:
@@ -422,6 +441,7 @@ def parse_characters(
                 id=char_id,
                 code=code,
                 name=name,
+                link=link,
                 watermark=watermark,
                 role=role,
                 summary=summary,
@@ -828,11 +848,22 @@ def render_cast(story: Story) -> str:
             if side == "left"
             else slots + 1 + character.lane
         )
+        name = esc(character.name)
+        if character.link:
+            external = urlsplit(character.link).scheme.lower() in {"http", "https"}
+            attrs = ' target="_blank" rel="noopener noreferrer"' if external else ""
+            arrow = (
+                '<span class="link-arrow" aria-hidden="true">↗</span>'
+                '<span class="sr-only">（另開新視窗）</span>'
+                if external
+                else ""
+            )
+            name = f'<a href="{esc(character.link)}"{attrs}>{name}{arrow}</a>'
         cards.append(
             f"""<article class="char-card char-card--{side} tone--{character.world.tone}" style="--col-start:{column};--col-end:{column + 1}">
         <span class="char-card__watermark" aria-hidden="true">{esc(character.watermark)}</span>
         <p class="char-card__code">{esc(character.code)}</p>
-        <h3 class="char-card__name">{esc(character.name)}</h3>
+        <h3 class="char-card__name">{name}</h3>
         <p class="char-card__role">{esc(character.role)}</p>
         <p class="char-card__summary">{esc(character.summary).replace(chr(10), "<br>")}</p>
       </article>"""
