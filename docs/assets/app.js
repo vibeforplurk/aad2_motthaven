@@ -17,6 +17,9 @@
   const jump = document.getElementById("year-jump");
   const compactButton = document.getElementById("compact-toggle");
   const focusButtons = Array.from(document.querySelectorAll("[data-focus-side]"));
+  const backgroundSegments = Array.from(
+    timeline.querySelectorAll(".timeline__bg--segment")
+  );
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const storageKey = "parallel-timeline-ui:v1";
 
@@ -25,6 +28,7 @@
   );
 
   let scrollFrame = 0;
+  let backgroundFrame = 0;
   let pinnedYear = null;
 
   /* ---------------------------------------------------------------- 偏好 */
@@ -132,6 +136,69 @@
     scrollFrame = window.requestAnimationFrame(updateCurrentYear);
   }
 
+  /* ---------------------------------------------------------- 背景切換點 */
+
+  function boundaryPosition(year, row) {
+    const band = document.getElementById(`year-${year}`);
+    if (!band || band.offsetParent === null) {
+      const next = bands.find(
+        (item) =>
+          item.offsetParent !== null && Number(item.dataset.year) > year
+      );
+      return next
+        ? next.getBoundingClientRect().top + window.scrollY
+        : null;
+    }
+
+    if (row <= 1) {
+      return band.getBoundingClientRect().top + window.scrollY;
+    }
+
+    const entries = Array.from(band.querySelectorAll(".entry"));
+    const candidates = entries
+      .filter((entry) => Number(entry.dataset.row) >= row)
+      .map((entry) => entry.getBoundingClientRect().top + window.scrollY);
+    if (candidates.length) {
+      return Math.min(...candidates);
+    }
+    return band.getBoundingClientRect().bottom + window.scrollY;
+  }
+
+  function updateTimelineBackgrounds() {
+    backgroundFrame = 0;
+    if (!backgroundSegments.length) return;
+
+    const rect = timeline.getBoundingClientRect();
+    const timelineTop = rect.top + window.scrollY;
+    const timelineBottom = timelineTop + timeline.offsetHeight;
+
+    for (const layer of backgroundSegments) {
+      const startYear = Number(layer.dataset.bgStartYear);
+      const startRow = Number(layer.dataset.bgStartRow || 1);
+      const endYear = Number(layer.dataset.bgEndYear || 0);
+      const endRow = Number(layer.dataset.bgEndRow || 1);
+
+      const start = startYear ? boundaryPosition(startYear, startRow) : null;
+      const end = endYear ? boundaryPosition(endYear, endRow) : null;
+      const top = Math.max(timelineTop, start ?? timelineBottom);
+      const bottom = Math.min(timelineBottom, end ?? timelineBottom);
+
+      if (bottom > top + 1) {
+        layer.style.top = `${top - timelineTop}px`;
+        layer.style.height = `${bottom - top}px`;
+        layer.classList.add("is-ready");
+      } else {
+        layer.classList.remove("is-ready");
+        layer.style.height = "0px";
+      }
+    }
+  }
+
+  function requestBackgroundUpdate() {
+    if (backgroundFrame) return;
+    backgroundFrame = window.requestAnimationFrame(updateTimelineBackgrounds);
+  }
+
   /* -------------------------------------------------------------- 精簡模式 */
 
   function setCompact(on, persist = true) {
@@ -141,6 +208,7 @@
     }
     if (persist) writePrefs({ compact: on });
     requestYearUpdate();
+    requestBackgroundUpdate();
   }
 
   /* ------------------------------------------------------------ 世界線聚焦 */
@@ -195,9 +263,13 @@
 
   syncTopbarHeight();
   updateCurrentYear();
+  updateTimelineBackgrounds();
 
   if (window.ResizeObserver && topbar) {
     new window.ResizeObserver(syncTopbarHeight).observe(topbar);
+  }
+  if (window.ResizeObserver) {
+    new window.ResizeObserver(requestBackgroundUpdate).observe(timeline);
   }
 
   window.addEventListener("scroll", requestYearUpdate, { passive: true });
@@ -207,7 +279,9 @@
   window.addEventListener("resize", () => {
     syncTopbarHeight();
     requestYearUpdate();
+    requestBackgroundUpdate();
   });
+  window.addEventListener("load", requestBackgroundUpdate);
 
   if (jump) {
     jump.addEventListener("change", () => {

@@ -10,6 +10,18 @@
     "endYear": null,
     "footer": "以上內容皆為虛構故事。有參考現實的資料，但請勿代入任何現實的人事物。"
   },
+  "timelineBackground": {
+    "baseImage": "map.jpg",
+    "baseOpacity": 0.5,
+    "segments": [
+      {
+        "image": "themepark.jpg",
+        "opacity": 0.6,
+        "start": { "year": 2026, "row": 1 },
+        "end": null
+      }
+    ]
+  },
   "worlds": [
     {
       "id": "I016",
@@ -328,9 +340,54 @@
       ]
     },
     {
-      "id": "evt-2026-common-birthday",
+      "id": "evt-2026-common-hotdog",
       "year": 2026,
       "row": 7,
+      "characters": ["i016-1", "i065-1"],
+      "title": "一輛廉價餐車停在了你面前",
+      "tone": "shared",
+      "body": "「那個熱狗堡……那個熱狗堡3塊錢！！」\n\n「怎麼可能，我們家那邊路邊攤的熱狗堡都要3塊5了──啊？」\n\n放滿酸黃瓜碎、生洋蔥碎與蒜味黃芥末醬的嗆辣熱狗堡，熱騰騰的，一份只要4塊25。\n\n「老兄，找到閘門前，你一定要長長久久開下去。」",
+      "links": [
+        {
+          "label": "交流－樂狗餐車 feat.喬許",
+          "url": "https://www.plurk.com/p/3jak1io0pw"
+        }
+      ]
+    },
+    {
+      "id": "evt-2026-i016-fundraising",
+      "year": 2026,
+      "row": 8,
+      "characters": ["i016-1"],
+      "title": "球桿募款",
+      "tone": "moss",
+      "body": "戴維德難得獨自在外頭蒐集物資。留凱西一個人在鎮上，戴維德還是擔心，但這已是眼下最好的做法。\n\n就算知道鎮上出入人口複雜，凱西一個人待著也需要注意安全，可他實在沒辦法帶著無拘無束的凱西在這種鬼地方行動啊啊啊！！！",
+      "links": [
+        {
+          "label": "交流－球桿募款 feat.武淑芬",
+          "url": "https://www.plurk.com/p/3jcndnwpj2"
+        }
+      ]
+    },
+    {
+      "id": "evt-2026-i065-stay",
+      "year": 2026,
+      "row": 8,
+      "characters": ["i065-1"],
+      "title": "STAY",
+      "tone": "amber",
+      "body": "要是他自己行動時遇到危險怎麼辦？\n\n要是他發生什麼狀況、自己回不來怎麼辦？\n\n「……快點回來啊。」",
+      "links": [
+        {
+          "label": "文章－STAY",
+          "url": "https://www.plurk.com/p/3jct1mz487"
+        }
+      ]
+    },
+    {
+      "id": "evt-2026-common-birthday",
+      "year": 2026,
+      "row": 9,
       "characters": ["i016-1", "i065-1"],
       "title": "生日快樂",
       "tone": "shared",
@@ -345,7 +402,7 @@
     {
       "id": "evt-2026-i065-birthday",
       "year": 2026,
-      "row": 7,
+      "row": 9,
       "characters": ["i065-1-d"],
       "title": "生日快樂",
       "tone": "amber",
@@ -360,7 +417,7 @@
     {
       "id": "evt-2026-common-zombieworld",
       "year": 2026,
-      "row": 8,
+      "row": 10,
       "characters": ["i016-1", "i065-1"],
       "title": "喪屍世界",
       "tone": "shared",
@@ -375,7 +432,7 @@
     {
       "id": "evt-2026-common-family",
       "year": 2026,
-      "row": 9,
+      "row": 11,
       "characters": ["i016-1", "i065-1"],
       "title": "家人",
       "tone": "shared",

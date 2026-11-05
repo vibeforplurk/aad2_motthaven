@@ -23,7 +23,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_DATA = ROOT / "data" / "story.json"
+DATA_DIR = ROOT / "data"
+DEFAULT_DATA = DATA_DIR / "story.json"
 DEFAULT_OUT = ROOT / "docs"
 SITE_DIR = ROOT / "site"
 
@@ -31,6 +32,8 @@ TONES = ("moss", "amber", "shared", "bridge")
 SIDES = ("left", "right")
 EXTERNAL_LINK_PREFIXES = ("http://", "https://")
 ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+BACKGROUND_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"}
+BACKGROUND_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 # ---------------------------------------------------------------------------
 # 資料模型
@@ -63,6 +66,38 @@ class Character:
 class Link:
     label: str
     url: str
+
+
+@dataclass(frozen=True)
+class Boundary:
+    year: int
+    row: int = 1
+
+
+@dataclass(frozen=True)
+class BackgroundSegment:
+    image_path: Path
+    image_url: str
+    opacity: float
+    start: Boundary
+    end: Boundary | None
+    index: int
+
+
+@dataclass(frozen=True)
+class TimelineBackground:
+    base_path: Path
+    base_url: str
+    base_opacity: float
+    segments: tuple[BackgroundSegment, ...] = ()
+
+    @property
+    def sources(self) -> tuple[Path, ...]:
+        paths: list[Path] = [self.base_path]
+        for segment in self.segments:
+            if segment.image_path not in paths:
+                paths.append(segment.image_path)
+        return tuple(paths)
 
 
 @dataclass
@@ -99,6 +134,7 @@ class Story:
     characters: tuple[Character, ...]
     events: tuple[Event, ...]
     warnings: tuple[str, ...] = ()
+    background: TimelineBackground | None = None
 
     @property
     def years(self) -> range:
@@ -198,6 +234,25 @@ def as_int(
         problems.error(path, "必須是整數")
         return default
     return value
+
+
+def as_ratio(
+    value: object,
+    path: str,
+    problems: Problems,
+    *,
+    default: float,
+) -> float:
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        problems.error(path, "必須是 0 到 1 之間的數字")
+        return default
+    number = float(value)
+    if not 0.0 <= number <= 1.0:
+        problems.error(path, "必須介於 0 到 1 之間")
+        return default
+    return number
 
 
 def read_paragraphs(value: object, path: str, problems: Problems) -> tuple[str, ...]:
@@ -640,6 +695,137 @@ def validate_event_rows(events: tuple[Event, ...], problems: Problems) -> None:
                             occupied[lane] = event.id
 
 
+def parse_background_image(
+    value: object, path: str, problems: Problems
+) -> tuple[Path, str] | None:
+    name = as_text(value, path, problems, required=True)
+    if not name:
+        return None
+
+    normalized = name.replace("\\", "/")
+    if normalized.startswith("data/"):
+        normalized = normalized[5:]
+    if "/" in normalized or normalized in {"", ".", ".."}:
+        problems.error(path, "請把圖片放在 data/ 資料夾，這裡只填檔名（例如 map.jpg）")
+        return None
+    if not BACKGROUND_NAME.fullmatch(normalized):
+        problems.error(path, "檔名只能使用英數、底線、連字號與點")
+        return None
+    suffix = Path(normalized).suffix.lower()
+    if suffix not in BACKGROUND_SUFFIXES:
+        problems.error(path, "格式必須是 .jpg、.jpeg、.png、.webp、.avif 或 .gif")
+        return None
+
+    source = DATA_DIR / normalized
+    if not source.is_file():
+        problems.error(path, f"找不到圖片 {source}")
+        return None
+    return source, f"assets/backgrounds/{normalized}"
+
+
+def parse_background_boundary(
+    value: object,
+    path: str,
+    site: Site,
+    problems: Problems,
+    *,
+    required: bool,
+) -> Boundary | None:
+    if value is None:
+        if required:
+            problems.error(path, "必須指定起始的 year 與 row")
+        return None
+
+    data = as_mapping(value, path, problems)
+    year = as_int(data.get("year"), f"{path}.year", problems, required=True)
+    if not site.start_year <= year <= site.end_year:
+        problems.error(
+            f"{path}.year",
+            f"必須介於 {site.start_year} 到 {site.end_year}",
+        )
+    row = as_int(data.get("row", 1), f"{path}.row", problems, default=1)
+    if row < 1:
+        problems.error(f"{path}.row", "必須是 1 以上的整數")
+    return Boundary(year=year, row=row)
+
+
+def parse_background(
+    raw: object, site: Site, problems: Problems
+) -> TimelineBackground | None:
+    if raw is None:
+        return None
+
+    data = as_mapping(raw, "timelineBackground", problems)
+    base = parse_background_image(
+        data.get("baseImage"), "timelineBackground.baseImage", problems
+    )
+    base_opacity = as_ratio(
+        data.get("baseOpacity"),
+        "timelineBackground.baseOpacity",
+        problems,
+        default=0.16,
+    )
+
+    segments_raw = data.get("segments", [])
+    if not isinstance(segments_raw, list):
+        problems.error("timelineBackground.segments", "必須是陣列")
+        segments_raw = []
+
+    segments: list[BackgroundSegment] = []
+    for index, item in enumerate(segments_raw):
+        path = f"timelineBackground.segments[{index}]"
+        item_data = as_mapping(item, path, problems)
+        image = parse_background_image(
+            item_data.get("image"), f"{path}.image", problems
+        )
+        opacity = as_ratio(
+            item_data.get("opacity"),
+            f"{path}.opacity",
+            problems,
+            default=0.22,
+        )
+        start = parse_background_boundary(
+            item_data.get("start"),
+            f"{path}.start",
+            site,
+            problems,
+            required=True,
+        )
+        end = parse_background_boundary(
+            item_data.get("end"),
+            f"{path}.end",
+            site,
+            problems,
+            required=False,
+        )
+        if start and end and (end.year, end.row) <= (start.year, start.row):
+            problems.error(
+                f"{path}.end",
+                "必須晚於 start（以 year、row 排序）",
+            )
+        if image is None or start is None:
+            continue
+        segments.append(
+            BackgroundSegment(
+                image_path=image[0],
+                image_url=image[1],
+                opacity=opacity,
+                start=start,
+                end=end,
+                index=len(segments),
+            )
+        )
+
+    if base is None:
+        return None
+    return TimelineBackground(
+        base_path=base[0],
+        base_url=base[1],
+        base_opacity=base_opacity,
+        segments=tuple(segments),
+    )
+
+
 def load_story(path: Path) -> Story:
     try:
         raw_text = path.read_text(encoding="utf-8-sig")
@@ -661,6 +847,7 @@ def load_story(path: Path) -> Story:
 
     problems = Problems()
     site = parse_site(raw.get("site"), problems)
+    background = parse_background(raw.get("timelineBackground"), site, problems)
     worlds = parse_worlds(raw.get("worlds"), problems)
     characters = parse_characters(raw.get("characters"), worlds, problems)
     events = parse_events(raw.get("events"), characters, site, problems)
@@ -672,6 +859,7 @@ def load_story(path: Path) -> Story:
         characters=characters,
         events=events,
         warnings=tuple(problems.warnings),
+        background=background,
     )
 
 
@@ -994,7 +1182,7 @@ def render_entry(
         f'\n        {render_links(event.links)}' if event.links else ""
     )
 
-    return f"""<article class="{' '.join(classes)}" id="{esc(event.id)}" data-year="{event.year}" data-side="{data_side}" data-worlds="{esc(worlds)}"{labelled}{style}>{meta_html}{title_html}
+    return f"""<article class="{' '.join(classes)}" id="{esc(event.id)}" data-year="{event.year}" data-row="{placed.row}" data-side="{data_side}" data-worlds="{esc(worlds)}"{labelled}{style}>{meta_html}{title_html}
         <div class="entry__body">
           {render_paragraphs(event.paragraphs)}
         </div>
@@ -1038,11 +1226,40 @@ def render_band(story: Story, year: int, now_year: int) -> str:
   </div>"""
 
 
+def render_background_layers(story: Story) -> str:
+    background = story.background
+    if background is None:
+        return ""
+
+    layers = [
+        '<div class="timeline__bg timeline__bg--base" aria-hidden="true" '
+        f'style="--bg-opacity:{background.base_opacity:.3f}">'
+        f'<img class="timeline__bg-image" src="{esc(background.base_url)}" '
+        'alt="" decoding="async"></div>'
+    ]
+    for segment in background.segments:
+        end_year = str(segment.end.year) if segment.end else ""
+        end_row = str(segment.end.row) if segment.end else ""
+        layers.append(
+            '<div class="timeline__bg timeline__bg--segment" '
+            f'data-bg-start-year="{segment.start.year}" '
+            f'data-bg-start-row="{segment.start.row}" '
+            f'data-bg-end-year="{end_year}" '
+            f'data-bg-end-row="{end_row}" aria-hidden="true" '
+            f'style="--bg-opacity:{segment.opacity:.3f}">'
+            f'<img class="timeline__bg-image" src="{esc(segment.image_url)}" '
+            'alt="" decoding="async"></div>'
+        )
+    return "\n  ".join(layers)
+
+
 def render_timeline(story: Story) -> str:
+    backgrounds = render_background_layers(story)
     bands = "\n  ".join(
         render_band(story, year, story.site.end_year) for year in story.years
     )
     return f"""<div class="timeline" id="timeline" role="region" style="--slots:{story.slots}" data-start-year="{story.site.start_year}" data-end-year="{story.site.end_year}" aria-label="{story.site.start_year} 年至 {story.site.end_year} 年角色年表">
+  {backgrounds}
   {bands}
 </div>"""
 
@@ -1101,6 +1318,12 @@ def write_site(story: Story, out_dir: Path) -> None:
         if not source.exists():
             raise DataError([f"找不到前端資源：{source}"], [])
         shutil.copyfile(source, assets_dir / name)
+
+    if story.background is not None:
+        backgrounds_dir = assets_dir / "backgrounds"
+        backgrounds_dir.mkdir(parents=True, exist_ok=True)
+        for source in story.background.sources:
+            shutil.copyfile(source, backgrounds_dir / source.name)
 
     (out_dir / "index.html").write_text(document, encoding="utf-8")
     (out_dir / ".nojekyll").write_text("", encoding="utf-8")

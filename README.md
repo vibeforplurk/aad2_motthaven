@@ -5,10 +5,11 @@
 
 - 左側：`I016` 世界線（`I016-1 戴維德`、`I016-1-C 凱西`）
 - 右側：`I065` 世界線（`I065-1 凱西`、`I065-1-D 戴維德`）
-- 年份：2000 年到「現在」（建置時自動計算）
+- 年份：`startYear` 到「現在」（建置時自動計算）
 - 深色底、低彩度苔綠與暗金配色；版面與資料分離，CSS 獨立成表
 
 ![年表預覽](preview.jpg)
+![2026 年切換為遊樂園背景](preview-themepark.jpg)
 
 ## 功能
 
@@ -17,6 +18,7 @@
 - 單一角色事件、同世界線多人合併事件（可設定共同底色）
 - 用 `row` 指定同年事件的上下順序；相同 `row` 的跨世界線事件會在同一列等高對齊
 - 跨世界線的「交會」事件放在中央欄，可與同列左右事件並排
+- 時間軸背景可使用 `map.jpg`／`themepark.jpg` 浮水印，依 year/row 切換，並可設定切回 map 的位置
 - 事件文字可分段，可附加多個外部／內部連結
 - 年份快速跳轉、目前年份顯示、預設隱藏空白年份（可切換）、聚焦單一世界線
 - 桌面版左右分欄；手機版時間軸靠左、所有事件單欄堆疊
@@ -47,17 +49,20 @@ python serve.py 8080 --open
 ├── build.py              # 讀取 JSON、驗證、產生 docs/
 ├── serve.py              # 本機預覽伺服器（無快取）
 ├── data/
-│   └── story.json        # ★ 所有文字內容都在這裡
+│   ├── story.json        # ★ 所有文字內容都在這裡
+│   ├── map.jpg           # 時間軸基礎背景
+│   └── themepark.jpg     # 2026 以後的覆蓋背景
 ├── site/
 │   ├── index.html        # HTML 外殼與 {{...}} 佔位符
 │   ├── style.css         # 版面、配色、響應式樣式
-│   └── app.js            # 年份跳轉、聚焦、精簡模式
+│   └── app.js            # 年份跳轉、聚焦、精簡模式、背景切換點
 ├── docs/                 # 產生結果，直接作為 GitHub Pages 來源
 │   ├── index.html
 │   ├── .nojekyll
 │   └── assets/
 │       ├── style.css
-│       └── app.js
+│       ├── app.js
+│       └── backgrounds/  # 由 build.py 複製過來的背景圖
 └── README.md
 ```
 
@@ -70,12 +75,12 @@ python serve.py 8080 --open
 ```json
 "site": {
   "lang": "zh-Hant",
-  "title": "兩座城的同一場雨",
-  "subtitle": "I016 與 I065．平行世界角色年表",
-  "eyebrow": "Parallel Worlds / Character Chronicle",
+  "title": "孤林港未眠",
+  "subtitle": "夜行樂園 I016戴維德 與 I065凱西 故事時間軸",
+  "eyebrow": "AADII / Sleepless in Mott Haven",
   "intro": "顯示在標題下方的導言。",
   "description": "給搜尋引擎與社群卡片用的摘要。",
-  "startYear": 2000,
+  "startYear": 2001,
   "endYear": null,
   "footer": "頁尾說明。"
 }
@@ -92,7 +97,45 @@ python serve.py 8080 --open
 
 > 年表終點是動態的。明年重新建置時，會自動多出一列新年份。
 
-### 2. 世界線 `worlds`
+### 2. 時間軸背景 `timelineBackground`
+
+時間軸的浮水印背景分成「基礎層」與「覆蓋段」：
+
+- `baseImage`：整條時間軸的基礎圖，預設是 `map.jpg`，所以 2026 以前看得到地圖。
+- `segments`：從指定的 `year`／`row` 開始，覆蓋成另一張圖（目前是 `themepark.jpg`）。
+- `end`：覆蓋段的結束點。填 `{ "year": ..., "row": ... }` 就會在該處換回 `baseImage`；填 `null` 則一路延伸到時間軸結尾。
+
+```json
+"timelineBackground": {
+  "baseImage": "map.jpg",
+  "baseOpacity": 0.13,
+  "segments": [
+    {
+      "image": "themepark.jpg",
+      "opacity": 0.26,
+      "start": { "year": 2026, "row": 1 },
+      "end": null
+    }
+  ]
+}
+```
+
+把 `end` 改成下面這樣，`themepark.jpg` 會在 2026 年第 4 列開始換回 `map.jpg`（第 4 列以前仍是 themepark）：
+
+```json
+"end": { "year": 2026, "row": 4 }
+```
+
+說明：
+
+- `row` 是該年份由上往下的內容列（1 起算，和事件的 `row` 對齊）。`row: 1` 的切換點是該年份標題的上緣；`row` 大於 1 時，切換點是該列第一個事件的上緣。若該列沒有事件，會往後找下一個有事件的列。
+- 若要讓 `themepark.jpg` 覆蓋整個 2026 年，但 2026 最後一列是第 9 列，可以設 `end: { "year": 2026, "row": 10 }`；超過內容列時會落在該年結尾。或直接設 `end: null` 延伸到時間軸結尾。
+- 圖片請放在 `data/` 資料夾，設定時填檔名（`map.jpg`）或 `data/map.jpg` 都可以。`build.py` 會驗證檔案存在，並複製到 `docs/assets/backgrounds/`。
+- 支援 `.jpg`、`.jpeg`、`.png`、`.webp`、`.avif`、`.gif`。
+- `opacity` 是浮水印強度（0–1）；圖片另外會經過亮度與飽和度壓暗。想更淡就把數值調小。
+- 背景只出現在時間軸區域，不會蓋到最上方的角色卡或頁尾。
+
+### 3. 世界線 `worlds`
 
 目前設計為「左、右各一條世界線」，一條世界線對應一側。
 
@@ -110,7 +153,7 @@ python serve.py 8080 --open
 - `tone`：`"moss"`、`"amber"` 或 `"shared"`，決定該世界線的預設顏色。
 - `note`：顯示在首頁圖例中的簡短描述。
 
-### 3. 角色 `characters`
+### 4. 角色 `characters`
 
 ```json
 {
@@ -118,10 +161,10 @@ python serve.py 8080 --open
   "code": "I016-1",
   "name": "戴維德",
   "link": "https://example.com/character",
-  "watermark": "D",
+  "watermark": "Late Meet Reunite",
   "world": "I016",
-  "lane": 2,
-  "role": "無線電修復師",
+  "lane": 1,
+  "role": "雜貨店老闆",
   "summary": "顯示在角色卡上的簡單介紹。"
 }
 ```
@@ -145,7 +188,7 @@ python serve.py 8080 --open
 | I065（右） | I065-1 凱西 | 1（內側） |
 | I065（右） | I065-1-D 戴維德 | 2（外側） |
 
-### 4. 事件 `events`
+### 5. 事件 `events`
 
 ```json
 {
@@ -187,7 +230,7 @@ python serve.py 8080 --open
 | --- | --- |
 | 同一個世界線的 1 位角色 | 單欄卡片，對齊該角色的欄位 |
 | 同一個世界線的 2 位以上角色 | 合併卡片，橫跨該側所有相關欄位；預設使用世界線的底色 |
-| 左右兩側都有角色 | 「世界線交會」卡片，橫跨整個年表寬度 |
+| 左右兩側都有角色 | 「世界線交會」卡片，放在中央欄，可與同列外側事件並排 |
 
 要讓合併卡片使用不同的共同底色，在事件加上 `"tone": "shared"`（或 `"moss"`、`"amber"`）。
 
@@ -261,6 +304,7 @@ python serve.py 8080 --open
 - `--moss` / `--amber` / `--shared` / `--bridge`：四個色調，事件卡與角色卡共用。
 - `--axis-w`：桌面版中央時間軸的寬度。
 - `--page-pad`：頁面左右留白。
+- 背景浮水印的亮度／飽和度在 `.timeline__bg--base .timeline__bg-image` 與 `.timeline__bg--segment .timeline__bg-image`；整體強度用 `timelineBackground` 的 `baseOpacity`／`opacity` 調整。
 - 桌面分欄的斷點是 `@media (min-width: 1024px)`，手機版在 `max-width: 640px` 微調。
 - 想新增色調（例如 `plum`）時，同步修改：
   1. `site/style.css` 新增 `.tone--plum` 與對應的 `--tone-rgb`
@@ -312,6 +356,7 @@ GitHub Pages 會自動更新。`docs/.nojekyll` 由建置程式產生，用來�
 - `lane` 是否重複或不連續
 - `row` 是否為正整數，以及同一列、同一側是否佔用到同一個 `lane`
 - 同一列是否有多個交會事件
+- 背景圖是否存在、格式是否支援，以及背景 `start`／`end` 是否在年份範圍內
 - 連結是否使用允許的格式（`http(s)`、`mailto`、`#`、`/`、`./`、`../`）
 
 錯誤訊息會指出位置，例如：
@@ -331,7 +376,7 @@ events[7].characters[0]：找不到角色「i016-x」
 
 ## 替換示範內容
 
-`data/story.json` 中目前的角色與事件都是虛構示範，連結指向 `example.com`。
+`data/story.json` 中目前的角色與事件都是虛構示範。
 直接替換 `title`、`intro`、角色簡介與事件內容即可；不需要改 Python。
 
 ## 授權

@@ -8,5 +8,8 @@ Thumbs.db
 .idea/
 .chrome-profile/
 .selenium-profile*/
-qa-*.png
+qa*.png
 qa-viewport.html
+_qa*/
+preview-top.png
+preview-themepark.png

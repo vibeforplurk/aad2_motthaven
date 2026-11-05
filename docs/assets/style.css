@@ -584,6 +584,7 @@ svg {
 
 .timeline {
   position: relative;
+  isolation: isolate;
   scroll-margin-top: calc(var(--topbar-height) + 1rem);
 }
 
@@ -593,6 +594,7 @@ svg {
   top: 0;
   bottom: 0;
   left: 1.8rem;
+  z-index: 1;
   width: 1px;
   background: linear-gradient(
     180deg,
@@ -616,8 +618,88 @@ svg {
   );
 }
 
+/* 時間軸浮水印背景：基礎層 + 依 year/row 切換的覆蓋層 */
+.timeline__bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  overflow: clip;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 3rem,
+    #000 calc(100% - 3rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 3rem,
+    #000 calc(100% - 3rem),
+    transparent 100%
+  );
+}
+
+.timeline__bg--base {
+  top: 0;
+  bottom: 0;
+}
+
+.timeline__bg--segment {
+  top: 0;
+  height: 0;
+  display: none;
+  background: var(--bg);
+}
+
+.timeline__bg--segment.is-ready {
+  display: block;
+}
+
+.timeline__bg-image {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  object-fit: cover;
+  object-position: center;
+  opacity: var(--bg-opacity, 0.16);
+  filter: brightness(0.58) saturate(0.72) contrast(0.95);
+  pointer-events: none;
+  user-select: none;
+}
+
+.timeline__bg--base .timeline__bg-image {
+  filter: brightness(0.55) saturate(0.55) contrast(0.98);
+}
+
+.timeline__bg--segment .timeline__bg-image {
+  filter: brightness(0.72) saturate(0.72) contrast(0.98);
+}
+
+.timeline__bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(13, 15, 12, 0.06), rgba(13, 15, 12, 0.3)),
+    radial-gradient(
+      120% 100% at 50% 0%,
+      transparent 42%,
+      rgba(13, 15, 12, 0.18) 100%
+    );
+  pointer-events: none;
+}
+
 .band {
   position: relative;
+  z-index: 2;
   display: grid;
   grid-template-columns: 3.6rem minmax(0, 1fr);
   column-gap: 0.9rem;
@@ -1212,6 +1294,7 @@ body[data-focus-side="right"] .char-card--left {
   .topbar,
   .skip-link,
   .cast__axis,
+  .timeline__bg,
   .site-footer__meta,
   .worlds {
     display: none !important;
