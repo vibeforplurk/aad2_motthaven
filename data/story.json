@@ -443,6 +443,36 @@
           "url": "https://www.plurk.com/p/3jcj8qnim4"
         }
       ]
+    },
+    {
+      "id": "evt-2026-i065-arm",
+      "year": 2026,
+      "row": 12,
+      "characters": ["i065-1"],
+      "title": "手臂",
+      "tone": "amber",
+      "body": "到底是什麼傷會需要截肢？\n\n凱西白著臉看了幾秒，才發現問題不在於那條手臂受了什麼傷，而是那條手臂的位置。",
+      "links": [
+        {
+          "label": "交流－女性腰間長出不該有的手臂…… feat.敄実 等多人",
+          "url": "https://www.plurk.com/p/3jcyaoun66"
+        }
+      ]
+    },
+    {
+      "id": "evt-2026-common-beforedanger",
+      "year": 2026,
+      "row": 13,
+      "characters": ["i016-1", "i065-1"],
+      "title": "前夕",
+      "tone": "shared",
+      "body": "討厭的夢，像是在昭告甚麼不好的事情就要發生了似地。\n\n恍惚中彷彿聽見嘲諷的笑聲。",
+      "links": [
+        {
+          "label": "交流－前夕",
+          "url": "https://www.plurk.com/p/3jd3ndoxkx"
+        }
+      ]
     }
   ]
 }
