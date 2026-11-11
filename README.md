@@ -393,14 +393,17 @@ python build.py
 | `title` | 選填，事件標題 |
 | `tone` | 選填，`moss`、`amber`、`shared` 或 `bridge`；留空時依角色自動決定 |
 | `body` | 必填，事件段落；段落之間空一行 |
-| `links` | 選填，每行一個連結，格式為 `連結文字 | URL` |
+| `links_title` | 選填，連結標題；多個連結用 &#124; 分隔，例如 標題一&#124;標題二 |
+| `links_url` | 選填，連結 URL；多個連結用 &#124; 分隔，數量必須與 `links_title` 一致 |
 | `temporary` | 選填，`true`／`false`；目前用來標記複製自 `-1` 的暫用事件，`build.py` 不會使用這個欄位 |
 
 ### 編輯注意事項
 
 - CSV 使用 UTF-8 BOM，Excel 可直接開啟；若用 Excel 編輯多行 `body`，可用 `Alt+Enter` 換行。
 - `body` 的段落之間空一行；單行換行會保留在同一段。
-- `links` 的多個連結請一行一個，格式是 `標籤 | https://...`；標籤本身不要包含 `|`。
+- 多個連結請在 `links_title` 寫 `標題一|標題二`，在 `links_url` 寫 `https://...|https://...`；兩欄的數量必須一致。轉換器會合併成 JSON 的 `links` 陣列。
+- 單一連結就是 `links_title` 一個標題、`links_url` 一個 URL；沒有連結時兩欄都留空。
+- 連結標題與 URL 本身不可包含 `|`，因為 `|` 是分隔符。
 - `characters` 請使用 `data/characters.json` 裡的 lowercase id，不是畫面代號。
 - `id` 建議保留；若刪掉，轉換工具會依年份與目前列數自動補一個。若插入/刪除列後想維持固定錨點，請手動填回原本的 id。
 - 目前 CSV 有 52 筆事件，其中 24 筆的 `temporary` 是 `true`；不再需要暫用事件時，直接刪除那些列，再執行轉換。

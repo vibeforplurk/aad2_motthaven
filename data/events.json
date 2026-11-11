@@ -13,7 +13,8 @@
           "label": "文章－不明白的事",
           "url": "https://www.plurk.com/p/3jajm3cpqb"
         }
-      ]
+      ],
+      "tone": "moss"
     },
     {
       "id": "evt-2008-i016-childhood",
@@ -28,7 +29,8 @@
           "label": "文章－不明白的事",
           "url": "https://www.plurk.com/p/3jajm3cpqb"
         }
-      ]
+      ],
+      "tone": "moss"
     },
     {
       "id": "evt-2011-i065-birth",
@@ -38,6 +40,7 @@
       ],
       "title": "凱西出生",
       "body": "她是第三個孩子，所以取名Casey。\n\n「他們想養狗，但他們沒有錢，所以他們生個孩子再取狗的名字。」",
+      "tone": "amber",
       "row": 1
     },
     {
@@ -54,6 +57,7 @@
           "url": "https://www.plurk.com/p/3jarupmk18"
         }
       ],
+      "tone": "amber",
       "row": 2
     },
     {
@@ -70,7 +74,8 @@
           "label": "文章－不明白的事",
           "url": "https://www.plurk.com/p/3jajm3cpqb"
         }
-      ]
+      ],
+      "tone": "moss"
     },
     {
       "id": "evt-2018-i065-childhood",
@@ -86,7 +91,8 @@
           "label": "文章－雜糧餅乾",
           "url": "https://www.plurk.com/p/3ja8339imw"
         }
-      ]
+      ],
+      "tone": "amber"
     },
     {
       "id": "evt-2022-common-homework",
@@ -120,7 +126,8 @@
           "label": "設定－學生家庭與社會狀況評估紀錄",
           "url": "https://www.plurk.com/p/3jarupmk18"
         }
-      ]
+      ],
+      "tone": "amber"
     },
     {
       "id": "evt-2025-common-lucas",
@@ -449,6 +456,23 @@
       "row": 12
     },
     {
+      "id": "evt-2026-i065-missing",
+      "year": 2026,
+      "characters": [
+        "i065-1-d"
+      ],
+      "title": "MISSING",
+      "body": "想要保護的孩子消失了，那個破爛家庭也沒有存在的必要了吧？\n\n「回來找不著人，那孩子會哭的。」",
+      "links": [
+        {
+          "label": "文章－MISSING",
+          "url": "https://www.plurk.com/p/3jdnz7ohg1"
+        }
+      ],
+      "tone": "amber",
+      "row": 12
+    },
+    {
       "id": "evt-2026-common-beforedanger",
       "year": 2026,
       "characters": [
@@ -465,6 +489,59 @@
       ],
       "tone": "shared",
       "row": 13
+    },
+    {
+      "id": "evt-2026-common-danger",
+      "year": 2026,
+      "characters": [
+        "i016-1",
+        "i065-1"
+      ],
+      "title": "寶物",
+      "body": "凱西沒有說話，只是看著戴維德，眼淚都停住了。\n\n神色從迷惑變得震驚，定格在難以言喻的恐慌。\n\n彷彿她一直小心抱著裝有寶貝的盒子，在她不小心摔倒、盒子翻倒後，她才發現裡面的東西不是她的寶貝。",
+      "links": [
+        {
+          "label": "交流－寶物",
+          "url": "https://www.plurk.com/p/3jdci4gwwu"
+        }
+      ],
+      "tone": "shared",
+      "row": 14
+    },
+    {
+      "id": "evt-2026-common-hideseek",
+      "year": 2026,
+      "characters": [
+        "i016-1",
+        "i065-1"
+      ],
+      "title": "捉迷藏",
+      "body": "凱西一度覺得自己是幸運的。她來到這裡的第一個晚上就跟戴維德會合了。\n\n冒著危險在夜幕降臨後還來找凱西的這個人，怎麼可能不是戴維德？\n\n「……為什麼啊……」",
+      "links": [
+        {
+          "label": "交流－捉迷藏",
+          "url": "https://www.plurk.com/p/3jdfmryw00"
+        }
+      ],
+      "tone": "shared",
+      "row": 15
+    },
+    {
+      "id": "evt-2026-i065-cupnoodle",
+      "year": 2026,
+      "characters": [
+        "i065-1"
+      ],
+      "title": "門廊的泡麵",
+      "body": "淑芬不知道那是不是某種保護自己不受傷的習慣，但在淑芬這樣的旁人看來⋯⋯總感覺被什麼梗住了。\n\n「晚安。祝好夢。」",
+      "links": [
+        {
+          "label": "交流－暮影魚肉口味泡麵 feat.武淑芬",
+          "url": "https://www.plurk.com/p/3jdghci9qt"
+        }
+      ],
+      "tone": "amber",
+      "row": 16
     },
     {
       "id": "evt-2001-i016-birth-tmp2",

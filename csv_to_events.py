@@ -27,9 +27,12 @@ FIELDS = [
     "title",
     "tone",
     "body",
-    "links",
+    "links_title",
+    "links_url",
     "temporary",
 ]
+LINK_FIELDS = ("links_title", "links_url")
+BASE_FIELDS = tuple(field for field in FIELDS if field not in LINK_FIELDS)
 
 ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 TONES = {"moss", "amber", "shared", "bridge"}
@@ -135,7 +138,50 @@ def valid_url(url: str) -> bool:
     return url.startswith(LINK_PREFIXES)
 
 
-def parse_links(value: object, label: str, errors: list[str]) -> list[dict[str, str]]:
+def parse_links(
+    titles_value: object,
+    urls_value: object,
+    label: str,
+    errors: list[str],
+) -> list[dict[str, str]]:
+    titles_text = str(titles_value or "").strip()
+    urls_text = str(urls_value or "").strip()
+    if not titles_text and not urls_text:
+        return []
+
+    titles = [part.strip() for part in titles_text.split("|")]
+    urls = [part.strip() for part in urls_text.split("|")]
+    if len(titles) != len(urls):
+        errors.append(
+            f"{label} 的 links_title 與 links_url 數量不一致"
+            f"（{len(titles)} 個標題、{len(urls)} 個 URL）"
+        )
+        return []
+
+    links: list[dict[str, str]] = []
+    for index, (link_label, url) in enumerate(zip(titles, urls), start=1):
+        if not link_label:
+            errors.append(f"{label} 第 {index} 個連結的標題不可為空")
+            continue
+        if not url:
+            errors.append(f"{label} 第 {index} 個連結的 URL 不可為空")
+            continue
+        if not valid_url(url):
+            errors.append(
+                f"{label} 第 {index} 個連結的 URL 必須是 http(s)、mailto、"
+                "#、/、./ 或 ../ 開頭"
+            )
+            continue
+        links.append({"label": link_label, "url": url})
+    return links
+
+
+def parse_legacy_links(
+    value: object,
+    label: str,
+    errors: list[str],
+) -> list[dict[str, str]]:
+    """支援舊版單一 links 欄位：每行「標題 | URL」。"""
     text = str(value or "").strip()
     if not text:
         return []
@@ -181,18 +227,27 @@ def import_csv(
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
         fieldnames = [name.strip() for name in (reader.fieldnames or [])]
-        missing = [name for name in FIELDS if name not in fieldnames]
-        if missing:
+        missing_base = [
+            name for name in BASE_FIELDS if name not in fieldnames
+        ]
+        has_new_links = all(name in fieldnames for name in LINK_FIELDS)
+        has_legacy_links = "links" in fieldnames
+        missing_links = (
+            []
+            if has_new_links or has_legacy_links
+            else list(LINK_FIELDS)
+        )
+        if missing_base or missing_links:
             raise ConversionError(
                 [
-                    f"{csv_path}：缺少欄位 {', '.join(missing)}；"
+                    f"{csv_path}：缺少欄位 "
+                    f"{', '.join(missing_base + missing_links)}；"
                     f"必要欄位是 {', '.join(FIELDS)}"
                 ]
             )
 
         for line_number, row in enumerate(reader, start=2):
-            values = [str(row.get(name) or "").strip() for name in FIELDS]
-            if not any(values):
+            if not any(str(value or "").strip() for value in row.values()):
                 continue
 
             row_errors: list[str] = []
@@ -221,10 +276,19 @@ def import_csv(
                 f"{prefix} body",
                 row_errors,
             )
-            links = parse_links(
-                row.get("links"),
-                f"{prefix} links",
-                row_errors,
+            links = (
+                parse_links(
+                    row.get("links_title"),
+                    row.get("links_url"),
+                    f"{prefix} links",
+                    row_errors,
+                )
+                if has_new_links
+                else parse_legacy_links(
+                    row.get("links"),
+                    f"{prefix} links",
+                    row_errors,
+                )
             )
 
             tone = str(row.get("tone") or "").strip()
@@ -311,12 +375,22 @@ def export_csv(json_path: Path, csv_path: Path) -> int:
             body = event.get("body", "")
             if isinstance(body, list):
                 body = "\n\n".join(str(part) for part in body)
-            link_lines = []
+            link_titles: list[str] = []
+            link_urls: list[str] = []
             for link in event.get("links", []) or []:
-                if isinstance(link, dict):
-                    link_lines.append(
-                        f"{link.get('label', '')} | {link.get('url', '')}"
+                if not isinstance(link, dict):
+                    continue
+                link_label = str(link.get("label", "")).strip()
+                url = str(link.get("url", "")).strip()
+                if "|" in link_label or "|" in url:
+                    raise ConversionError(
+                        [
+                            f"{json_path}：事件「{event.get('id', '?')}」的連結"
+                            "標題或 URL 含有 `|`，無法用 CSV 的 `|` 分隔格式表示"
+                        ]
                     )
+                link_titles.append(link_label)
+                link_urls.append(url)
             writer.writerow(
                 {
                     "id": event.get("id", ""),
@@ -327,7 +401,8 @@ def export_csv(json_path: Path, csv_path: Path) -> int:
                     "title": event.get("title", ""),
                     "tone": event.get("tone", ""),
                     "body": body,
-                    "links": "\n".join(link_lines),
+                    "links_title": "|".join(link_titles),
+                    "links_url": "|".join(link_urls),
                     "temporary": "true" if event.get("temporary") else "",
                 }
             )
