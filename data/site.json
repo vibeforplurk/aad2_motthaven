@@ -1,0 +1,56 @@
+{
+  "site": {
+    "lang": "zh-Hant",
+    "title": "孤林港未眠",
+    "subtitle": "夜行樂園 I016戴維德 與 I065凱西 故事時間軸",
+    "eyebrow": "AADII / Sleepless in Mott Haven",
+    "intro": "手中的票券失去一角再回到手上。三棍通道閘往前轉三分之一圈，人就到了另一個世界。熱鬧歡快的音樂吞掉了所有離得比較遠的聲音，在這般吵雜的地方意外地塑造出了一種只有自己與親近之人的狹隘感。\n\n這是他與她的世界。",
+    "description": "夜行樂園 I016 與 I065 企劃故事時間表。",
+    "startYear": 2001,
+    "endYear": null,
+    "footer": "以上內容皆為虛構故事。有參考現實的資料，但請勿代入任何現實的人事物。"
+  },
+  "timelineBackground": {
+    "baseImage": "map.jpg",
+    "baseOpacity": 0.5,
+    "segments": [
+      {
+        "image": "themepark.jpg",
+        "opacity": 0.6,
+        "start": {
+          "year": 2026,
+          "row": 1
+        },
+        "end": null
+      }
+    ]
+  },
+  "variantSwitches": {
+    "I016": {
+      "1": true,
+      "2": false,
+      "3": false
+    },
+    "I065": {
+      "1": true,
+      "2": false,
+      "3": false
+    }
+  },
+  "worlds": [
+    {
+      "id": "I016",
+      "name": "世界線 I016",
+      "side": "left",
+      "tone": "moss",
+      "note": "差點賴床睡掉遊樂園約會的周日"
+    },
+    {
+      "id": "I065",
+      "name": "世界線 I065",
+      "side": "right",
+      "tone": "amber",
+      "note": "第一次去遊樂園約會的周日"
+    }
+  ]
+}

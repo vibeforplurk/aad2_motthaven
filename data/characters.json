@@ -1,0 +1,130 @@
+{
+  "characters": [
+    {
+      "id": "i016-1",
+      "code": "I016-1",
+      "name": "戴維德",
+      "link": "https://www.plurk.com/p/3j98hopwff",
+      "watermark": "Late Meet Reunite",
+      "variant": 1,
+      "world": "I016",
+      "lane": 1,
+      "role": "雜貨店老闆",
+      "summary": "葬禮當天起晚了，出門被野貓纏上。\nLate Meet Reunite."
+    },
+    {
+      "id": "i016-1-c",
+      "code": "I016-1-C",
+      "name": "凱西",
+      "watermark": "Late Meet Reunite",
+      "variant": 1,
+      "world": "I016",
+      "lane": 2,
+      "role": "中學生",
+      "summary": "葬禮當天早上在雜貨店堵到戴維德。\nLate Meet Reunite."
+    },
+    {
+      "id": "i016-2",
+      "code": "I016-2",
+      "name": "戴維德",
+      "variant": 2,
+      "world": "I016",
+      "lane": 1,
+      "role": "待補",
+      "summary": "待補"
+    },
+    {
+      "id": "i016-2-c",
+      "code": "I016-2-C",
+      "name": "凱西",
+      "variant": 2,
+      "world": "I016",
+      "lane": 2,
+      "role": "待補",
+      "summary": "待補"
+    },
+    {
+      "id": "i016-3",
+      "code": "I016-3",
+      "name": "戴維德",
+      "variant": 3,
+      "world": "I016",
+      "lane": 1,
+      "role": "待補",
+      "summary": "待補"
+    },
+    {
+      "id": "i016-3-c",
+      "code": "I016-3-C",
+      "name": "凱西",
+      "variant": 3,
+      "world": "I016",
+      "lane": 2,
+      "role": "待補",
+      "summary": "待補"
+    },
+    {
+      "id": "i065-1",
+      "code": "I065-1",
+      "name": "凱西",
+      "link": "https://www.plurk.com/p/3j9txaiuw6",
+      "watermark": "Late Miss Out",
+      "variant": 1,
+      "world": "I065",
+      "lane": 1,
+      "role": "中學生",
+      "summary": "徒步前往葬禮但找不到墓碑。\nLate Miss Out."
+    },
+    {
+      "id": "i065-1-d",
+      "code": "I065-1-D",
+      "name": "戴維德",
+      "watermark": "Late Miss Out",
+      "variant": 1,
+      "world": "I065",
+      "lane": 2,
+      "role": "雜貨店老闆",
+      "summary": "葬禮當天早上準時出門。\nLate Miss Out."
+    },
+    {
+      "id": "i065-2",
+      "code": "I065-2",
+      "name": "凱西",
+      "variant": 2,
+      "world": "I065",
+      "lane": 1,
+      "role": "待補",
+      "summary": "待補"
+    },
+    {
+      "id": "i065-2-d",
+      "code": "I065-2-D",
+      "name": "戴維德",
+      "variant": 2,
+      "world": "I065",
+      "lane": 2,
+      "role": "待補",
+      "summary": "待補"
+    },
+    {
+      "id": "i065-3",
+      "code": "I065-3",
+      "name": "凱西",
+      "variant": 3,
+      "world": "I065",
+      "lane": 1,
+      "role": "待補",
+      "summary": "待補"
+    },
+    {
+      "id": "i065-3-d",
+      "code": "I065-3-D",
+      "name": "戴維德",
+      "variant": 3,
+      "world": "I065",
+      "lane": 2,
+      "role": "待補",
+      "summary": "待補"
+    }
+  ]
+}

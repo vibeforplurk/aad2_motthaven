@@ -1,11 +1,12 @@
 # 平行世界角色年表
 
 以「中央垂直時間軸 × 左右角色分欄」呈現平行世界故事的靜態年表。
-內容集中在 `data/story.json`，由一支純 Python 標準庫的 `build.py` 產生可直接放上 GitHub Pages 的 `docs/`。
+內容主要由 `data/site.json`、`data/characters.json`、`data/events.json` 三份 JSON 描述，由一支純 Python 標準庫的 `build.py` 彙整，產生可直接放上 GitHub Pages 的 `docs/`。事件也可以先用 `data/events.csv` 編輯，再由 `csv_to_events.py` 轉成 `events.json`。
 
-- 左側：`I016` 世界線（`I016-1 戴維德`、`I016-1-C 凱西`）
-- 右側：`I065` 世界線（`I065-1 凱西`、`I065-1-D 戴維德`）
-- 年份：`startYear` 到「現在」（建置時自動計算）
+- 左側：`I016` 世界線，可在 `I016-1`、`I016-2`、`I016-3` 三個版本間切換
+- 右側：`I065` 世界線，可在 `I065-1`、`I065-2`、`I065-3` 三個版本間切換
+- 每個版本各有一位主角色（`I016-N`／`I065-N`）與一位外側搭檔；角色卡只顯示目前選取的 2+2 位
+- 年份：`startYear` 到「現在」（建置時自動計算）；沒有事件的年份直接省略
 - 深色底、低彩度苔綠與暗金配色；版面與資料分離，CSS 獨立成表
 
 ![年表預覽](preview.jpg)
@@ -13,14 +14,17 @@
 
 ## 功能
 
-- 每年一列，沒有事件的年份也保留在時間軸上
-- 角色名稱與簡介卡固定在年表上方，對應各自的欄位
+- 只顯示有事件的年份，沒有事件的空白年份不佔版面
+- 頂欄合併目前年份、年份選單與左右版本切換器；可獨立選擇 `I016-1/2/3` 與 `I065-1/2/3`，共 9 種組合
+- 版本可用 `site.json` 的開關關閉；關閉的版本仍會顯示在頂欄，但會壓灰且無法點擊
+- 角色名稱與簡介卡固定在年表上方，只顯示目前選取的 2+2 位，切換時同步更新
 - 單一角色事件、同世界線多人合併事件（可設定共同底色）
 - 用 `row` 指定同年事件的上下順序；相同 `row` 的跨世界線事件會在同一列等高對齊
 - 跨世界線的「交會」事件放在中央欄，可與同列左右事件並排
+- 只有當左右兩側目前選取的角色都參與時，事件才會變成中央交會卡；若只有一側參與，就只出現在該側
 - 時間軸背景可使用 `map.jpg`／`themepark.jpg` 浮水印，依 year/row 切換，並可設定切回 map 的位置
 - 事件文字可分段，可附加多個外部／內部連結
-- 年份快速跳轉、目前年份顯示、預設隱藏空白年份（可切換）、聚焦單一世界線
+- 年份快速跳轉、目前年份顯示
 - 桌面版左右分欄；手機版時間軸靠左、所有事件單欄堆疊
 - 不需要資料庫、不需要 npm、不需要任何 Python 套件
 
@@ -40,22 +44,32 @@ python serve.py
 python serve.py 8080 --open
 ```
 
-`build.py` 會驗證資料，有問題時會一次列出所有錯誤，不會產生半套網站。
+`build.py` 會讀取 `data/` 下的三份 JSON、驗證內容並彙整；有問題時會一次列出所有錯誤，不會產生半套網站。錯誤訊息會標示來源檔名。
+
+日後若要把資料放在別的資料夾，可以這樣指定（圖片也要放在同一個資料夾）：
+
+```powershell
+python build.py --data-dir other-data --out public
+```
 
 ## 目錄結構
 
 ```text
 .
-├── build.py              # 讀取 JSON、驗證、產生 docs/
+├── build.py              # 讀取資料、驗證、彙整並產生 docs/
+├── csv_to_events.py      # 把 data/events.csv 轉成 data/events.json（可 --export 反向匯出）
 ├── serve.py              # 本機預覽伺服器（無快取）
 ├── data/
-│   ├── story.json        # ★ 所有文字內容都在這裡
+│   ├── site.json         # ★ 標題、版頭、世界線、版本開關、背景、頁尾
+│   ├── characters.json   # ★ 角色介紹與設定
+│   ├── events.csv        # ★ 用 CSV 編輯事件（建議從這裡改）
+│   ├── events.json       # 時間軸事件卡（由 csv_to_events.py 產生）
 │   ├── map.jpg           # 時間軸基礎背景
 │   └── themepark.jpg     # 2026 以後的覆蓋背景
 ├── site/
 │   ├── index.html        # HTML 外殼與 {{...}} 佔位符
 │   ├── style.css         # 版面、配色、響應式樣式
-│   └── app.js            # 年份跳轉、聚焦、精簡模式、背景切換點
+│   └── app.js            # 年份跳轉、版本切換、角色卡同步、背景切換點
 ├── docs/                 # 產生結果，直接作為 GitHub Pages 來源
 │   ├── index.html
 │   ├── .nojekyll
@@ -68,9 +82,20 @@ python serve.py 8080 --open
 
 `docs/` 是產物。請修改 `data/` 與 `site/`，再重新執行 `python build.py`；直接改 `docs/` 會在下次建置時被覆蓋。
 
-## 編輯內容：`data/story.json`
+## 編輯內容：`data/` 下的三個 JSON
 
-### 1. 網站基本資料
+| 檔案 | 負責內容 | 外層結構 |
+| --- | --- | --- |
+| `site.json` | 網站大標題、版頭、世界線簡介、版本開關、背景設定、頁尾 | `{ "site": ..., "timelineBackground": ..., "variantSwitches": ..., "worlds": [...] }` |
+| `characters.json` | 12 位角色的名稱、代號、版本、lane、職稱、介紹、頭像浮水印、連結 | `{ "characters": [...] }` |
+| `events.csv` | 用試算表編輯的事件表；轉換後才變成 `events.json` | 表頭列 + 每列一筆事件 |
+| `events.json` | 時間軸上的所有事件卡與排序；由 `csv_to_events.py` 產生 | `{ "events": [...] }` |
+
+`build.py` 會先合併三份 JSON，再進行驗證與輸出。事件仍然依 `year` 排序；同一年內依 `row` 與 JSON 中的先後順序排列。舊的 `data/story.json` 已移除，請直接編輯這些檔案，不要合併回單一檔案。`events.json` 可以由 `data/events.csv` 轉換產生；見下面的 CSV 工作流程。
+
+### 1. 網站基本資料（`site.json`）
+
+> 第 1～3 節的內容都放在同一個 `data/site.json`。
 
 ```json
 "site": {
@@ -97,7 +122,7 @@ python serve.py 8080 --open
 
 > 年表終點是動態的。明年重新建置時，會自動多出一列新年份。
 
-### 2. 時間軸背景 `timelineBackground`
+### 2. 時間軸背景 `timelineBackground`（`site.json`）
 
 時間軸的浮水印背景分成「基礎層」與「覆蓋段」：
 
@@ -108,11 +133,11 @@ python serve.py 8080 --open
 ```json
 "timelineBackground": {
   "baseImage": "map.jpg",
-  "baseOpacity": 0.13,
+  "baseOpacity": 0.5,
   "segments": [
     {
       "image": "themepark.jpg",
-      "opacity": 0.26,
+      "opacity": 0.6,
       "start": { "year": 2026, "row": 1 },
       "end": null
     }
@@ -129,13 +154,13 @@ python serve.py 8080 --open
 說明：
 
 - `row` 是該年份由上往下的內容列（1 起算，和事件的 `row` 對齊）。`row: 1` 的切換點是該年份標題的上緣；`row` 大於 1 時，切換點是該列第一個事件的上緣。若該列沒有事件，會往後找下一個有事件的列。
-- 若要讓 `themepark.jpg` 覆蓋整個 2026 年，但 2026 最後一列是第 9 列，可以設 `end: { "year": 2026, "row": 10 }`；超過內容列時會落在該年結尾。或直接設 `end: null` 延伸到時間軸結尾。
+- 若要讓 `themepark.jpg` 覆蓋整個 2026 年，但 2026 最後一列是第 13 列，可以設 `end: { "year": 2026, "row": 14 }`；超過內容列時會落在該年結尾。或直接設 `end: null` 延伸到時間軸結尾。
 - 圖片請放在 `data/` 資料夾，設定時填檔名（`map.jpg`）或 `data/map.jpg` 都可以。`build.py` 會驗證檔案存在，並複製到 `docs/assets/backgrounds/`。
 - 支援 `.jpg`、`.jpeg`、`.png`、`.webp`、`.avif`、`.gif`。
 - `opacity` 是浮水印強度（0–1）；圖片另外會經過亮度與飽和度壓暗。想更淡就把數值調小。
 - 背景只出現在時間軸區域，不會蓋到最上方的角色卡或頁尾。
 
-### 3. 世界線 `worlds`
+### 3. 世界線 `worlds`（`site.json`）
 
 目前設計為「左、右各一條世界線」，一條世界線對應一側。
 
@@ -153,13 +178,41 @@ python serve.py 8080 --open
 - `tone`：`"moss"`、`"amber"` 或 `"shared"`，決定該世界線的預設顏色。
 - `note`：顯示在首頁圖例中的簡短描述。
 
-### 4. 角色 `characters`
+### 版本開關 `variantSwitches`（`site.json`）
+
+`site.json` 最外層的 `variantSwitches` 控制每個世界線的 `-1／-2／-3` 是否可切換。這是目前建議的開關位置：直接改 `true`／`false` 即可，不需要碰程式。
+
+```json
+"variantSwitches": {
+  "I016": {
+    "1": true,
+    "2": false,
+    "3": false
+  },
+  "I065": {
+    "1": true,
+    "2": false,
+    "3": false
+  }
+}
+```
+
+- `true`：版本可按，會正常切換角色卡與時間軸。
+- `false`：版本選項仍會出現在頂欄，但按鈕會壓灰、加上 `disabled`，點擊不會切換。
+- 每個世界線至少要有一個 `true`；預設選取第一個開啟的版本。若 URL 或 `localStorage` 指到關閉的版本，會自動退回第一個開啟的版本。
+- 目前 `-2`、`-3` 設為關閉；要開放時把對應的 `false` 改成 `true`，再執行 `python build.py`。
+- `variantSwitches` 省略時，所有版本預設為開啟；有填寫時，三個版本鍵都必須存在，且必須是布林值。
+
+### 4. 角色 `characters`（`characters.json`）
+
+檔案外層是 `{ "characters": [...] }`，以下為陣列中的一個角色物件。
 
 ```json
 {
   "id": "i016-1",
   "code": "I016-1",
   "name": "戴維德",
+  "variant": 1,
   "link": "https://example.com/character",
   "watermark": "Late Meet Reunite",
   "world": "I016",
@@ -171,24 +224,45 @@ python serve.py 8080 --open
 
 - `id`：事件用它來引用角色，必須唯一。
 - `code`：畫面上顯示的完整代號，例如 `I016-1-C`。
+- `variant`：`1`、`2` 或 `3`，對應頂欄的版本按鈕。左右兩側都必須各有 1、2、3 三個版本。
 - `link`：選填；提供角色名稱的連結，支援 `http(s)`、`mailto`、`#錨點`、`/` 或 `./` 開頭的網址。外部連結會另開新視窗。
 - `watermark`：角色卡底圖文字；可填一字或自訂文字。省略時使用 `name` 的第一個字。
 - `world`：對應 `worlds[].id`。
-- `lane`：1 代表最靠近中央時間軸的欄位，2 是外側，依此類推。
-  省略時會自動補上最小的空位。同一側的 `lane` 必須從 1 開始連續。
+- `lane`：1 代表最靠近中央時間軸的欄位，2 是外側。每個 `variant` 內必須剛好有一位 lane 1（主角色）與一位 lane 2（搭檔）。
 - `role`、`summary`：角色卡上的職稱與介紹；`summary` 可用 `\n` 換行，連續兩個換行會留出空行。
 
 左側的視覺順序是「外側 → 內側」，右側是「內側 → 外側」，所以兩邊會自然鏡射。
-預設四位角色的 `lane` 安排是：
+目前 12 位角色的安排是：
 
-| 世界線 | 角色 | lane |
-| --- | --- | --- |
-| I016（左） | I016-1 戴維德 | 1（內側） |
-| I016（左） | I016-1-C 凱西 | 2（外側） |
-| I065（右） | I065-1 凱西 | 1（內側） |
-| I065（右） | I065-1-D 戴維德 | 2（外側） |
+| 世界線 | 版本 | 角色 | lane |
+| --- | --- | --- | --- |
+| I016（左） | 1 | I016-1 戴維德 | 1（內側） |
+| I016（左） | 1 | I016-1-C 凱西 | 2（外側） |
+| I016（左） | 2 | I016-2 戴維德 | 1（內側） |
+| I016（左） | 2 | I016-2-C 凱西 | 2（外側） |
+| I016（左） | 3 | I016-3 戴維德 | 1（內側） |
+| I016（左） | 3 | I016-3-C 凱西 | 2（外側） |
+| I065（右） | 1 | I065-1 凱西 | 1（內側） |
+| I065（右） | 1 | I065-1-D 戴維德 | 2（外側） |
+| I065（右） | 2 | I065-2 凱西 | 1（內側） |
+| I065（右） | 2 | I065-2-D 戴維德 | 2（外側） |
+| I065（右） | 3 | I065-3 凱西 | 1（內側） |
+| I065（右） | 3 | I065-3-D 戴維德 | 2（外側） |
 
-### 5. 事件 `events`
+`I016-2`、`I016-3`、`I065-2`、`I065-3` 等新角色的 `role`／`summary` 目前是「待補」placeholder；可直接在 JSON 中替換，不需要改程式。
+
+### 角色版本切換
+
+頂欄的兩組按鈕會分別選擇左側與右側的 `variant`，並和目前年份、年份選單合併在同一排；沒有另外一列版本選單：
+
+- 左側選 `I016-2` → 顯示 `I016-2` + `I016-2-C`
+- 右側選 `I065-2` → 顯示 `I065-2` + `I065-2-D`
+
+一次切換一整個版本，不能只換主角色而保留另一版本的搭檔。角色卡、年份選單與事件卡都會同步更新；選擇會記在 `localStorage`，也會寫入 `?left=2&right=3` 這類 URL 參數。
+
+### 5. 事件 `events`（`events.json`）
+
+檔案外層是 `{ "events": [...] }`，以下為陣列中的一個事件物件。
 
 ```json
 {
@@ -220,6 +294,8 @@ python serve.py 8080 --open
 | `links` | 選填；`label` + `url`，可多個 |
 | `tone` | 選填；`moss`、`amber`、`shared`、`bridge` |
 
+目前 [data/events.json](data/events.json) 有 28 筆正式事件，以及 24 筆複製自 `-1` 的暫用事件，用來讓 `-2`／`-3` 版本在畫面上有內容。暫用事件的 id 會以 `-tmp2`、`-tmp3` 結尾，並帶有 `"temporary": true`；之後可直接刪除或改寫，不會影響程式。
+
 **跨年份事件**會放在 `year` 那一列，並在卡片上標示 `2003–2004`；它不會在畫面上拉長成一個區塊。
 
 **同一年、同一角色有多個事件**時，未指定 `row` 會自動往下堆疊，不會互相重疊；需要和另一側事件等高時，請使用下一節的 `row`。
@@ -228,9 +304,15 @@ python serve.py 8080 --open
 
 | 事件角色 | 呈現方式 |
 | --- | --- |
-| 同一個世界線的 1 位角色 | 單欄卡片，對齊該角色的欄位 |
-| 同一個世界線的 2 位以上角色 | 合併卡片，橫跨該側所有相關欄位；預設使用世界線的底色 |
-| 左右兩側都有角色 | 「世界線交會」卡片，放在中央欄，可與同列外側事件並排 |
+| 目前選取組合中，同一個世界線的 1 位角色 | 單欄卡片，對齊該角色的欄位 |
+| 目前選取組合中，同一個世界線的 2 位以上角色 | 合併卡片，橫跨該側所有相關欄位；預設使用世界線的底色 |
+| 目前選取組合中，左右兩側都有角色 | 「世界線交會」卡片，放在中央欄，可與同列外側事件並排 |
+| 事件有其他版本的角色，但不在目前組合中 | 不顯示；卡片只列出目前組合實際參與的角色 |
+
+例如事件 A 同時有 `I016-1` 與 `I065-1`：
+
+- 左 `I016-1`／右 `I065-1`：兩側都參與，顯示為中央交會卡。
+- 左 `I016-1`／右 `I065-2`：只有左側參與，事件 A 只會出現在左側；右側可顯示 `I065-2` 自己的事件 B。
 
 要讓合併卡片使用不同的共同底色，在事件加上 `"tone": "shared"`（或 `"moss"`、`"amber"`）。
 
@@ -245,7 +327,7 @@ python serve.py 8080 --open
 - 沒有設定 `row` 的事件：若該年完全沒有 `row`，維持原本的自動堆疊；若該年已有其他事件設定 `row`，這些未指定的事件會排在所有指定列之後（建置時會顯示提示）。
 - `row` 必須是 1 以上的整數；可以跳號，例如 10、20、30，實際顯示時會依排序壓縮。
 
-目前 [data/story.json](data/story.json) 的 2025 年就是使用這個機制：
+目前 [data/events.json](data/events.json) 的 2025 年就是使用這個機制：
 
 - `evt-2025-common-lucas`：`row: 1`（交會公告，置於中央欄）
 - `evt-2025-i016-funeral`：`row: 2`
@@ -281,10 +363,59 @@ python serve.py 8080 --open
 
 規則：
 
-- 同一列、同一側、同一 `lane` 不能有兩個事件重疊；`build.py` 會報錯並列出衝突的 id。
+- 同一列、同一側、同一 `lane` 不能有兩個事件重疊；`build.py` 會依 9 種左右組合分別檢查，並列出衝突的 id。
 - 交會事件橫跨中央欄與左右各一個內側欄；同一 `row` 可以同時放一個交會事件和左右側事件，但不能放兩個交會事件，也不能在交會卡占用的內側欄放其他事件。
 - 同一列可以放左右兩側各一個事件，也可以放同一側不同 `lane` 的事件。
-- 只影響 `year` 相同的事件；`endYear` 跨年份的事件仍以起始年份為準。
+- 只影響 `year` 相同、且會在同一個左右組合中出現的事件；不同版本的事件若不會同時顯示，可以共用 `row`。
+- `endYear` 跨年份的事件仍以起始年份為準。
+
+## 用 CSV 編輯事件
+
+`data/events.csv` 是給試算表編輯的事件表；`build.py` 仍然讀 `data/events.json`。編輯 CSV 後，先用轉換工具產生 JSON，再建置網站：
+
+```powershell
+# 1. 編輯 data/events.csv
+python csv_to_events.py
+python build.py
+```
+
+轉換工具會先驗證欄位、角色 id、年份、`row`、`endYear`、`tone`、連結與 ID；有錯誤時不會覆寫 `data/events.json`。
+
+### CSV 欄位
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 選填。留空時自動產生 `evt-{year}-NN`；只能使用英數字、底線與連字號，且以字母開頭 |
+| `year` | 必填，事件開始年份 |
+| `endYear` | 選填，跨年份時填結束年份 |
+| `row` | 選填，同一年的列序；留空表示自動排列 |
+| `characters` | 必填，角色 id 以分號分隔，例如 `i016-1;i065-1`（逗號或空白也可以） |
+| `title` | 選填，事件標題 |
+| `tone` | 選填，`moss`、`amber`、`shared` 或 `bridge`；留空時依角色自動決定 |
+| `body` | 必填，事件段落；段落之間空一行 |
+| `links` | 選填，每行一個連結，格式為 `連結文字 | URL` |
+| `temporary` | 選填，`true`／`false`；目前用來標記複製自 `-1` 的暫用事件，`build.py` 不會使用這個欄位 |
+
+### 編輯注意事項
+
+- CSV 使用 UTF-8 BOM，Excel 可直接開啟；若用 Excel 編輯多行 `body`，可用 `Alt+Enter` 換行。
+- `body` 的段落之間空一行；單行換行會保留在同一段。
+- `links` 的多個連結請一行一個，格式是 `標籤 | https://...`；標籤本身不要包含 `|`。
+- `characters` 請使用 `data/characters.json` 裡的 lowercase id，不是畫面代號。
+- `id` 建議保留；若刪掉，轉換工具會依年份與目前列數自動補一個。若插入/刪除列後想維持固定錨點，請手動填回原本的 id。
+- 目前 CSV 有 52 筆事件，其中 24 筆的 `temporary` 是 `true`；不再需要暫用事件時，直接刪除那些列，再執行轉換。
+
+如果直接改了 `data/events.json`，想重新產生 CSV：
+
+```powershell
+python csv_to_events.py --export
+```
+
+也可以指定其他路徑：
+
+```powershell
+python csv_to_events.py --csv data/events.csv --json data/events.json --characters data/characters.json
+```
 
 ## 修改樣式
 
@@ -315,8 +446,8 @@ python serve.py 8080 --open
 ## 修改版面或行為
 
 - **HTML 外殼**：`site/index.html`，其中 `{{HERO}}`、`{{CAST}}`、`{{TOOLBAR}}`、`{{TIMELINE}}`、`{{FOOTER}}` 由 Python 替換。
-- **HTML 產生邏輯**：`build.py` 的 `render_*` 函式。
-- **前端互動**：`site/app.js`。目前包含年份跳轉、scrollspy、精簡模式、世界線聚焦與 `localStorage` 記憶。
+- **HTML 產生邏輯**：`build.py` 的 `render_*` 函式。年表會預先產生 9 種左右組合，前端只切換顯示中的組合。
+- **前端互動**：`site/app.js`。目前包含年份跳轉、scrollspy、版本切換、角色卡同步、背景切換點與 `localStorage` 記憶。
 - 新增佔位符時，記得同步更新 `build.py` 的 `replacements`；若有未替換的 `{{...}}`，建置會直接報錯。
 
 ## 發佈到 GitHub Pages
@@ -332,9 +463,9 @@ python serve.py 8080 --open
 日後修改內容的流程：
 
 ```powershell
-# 編輯 data/story.json 或 site/ 下的檔案
+# 編輯 data/site.json、characters.json、events.json 或 site/ 下的檔案
 python build.py
-git add .
+git add data docs site build.py README.md
 git commit -m "update timeline"
 git push
 ```
@@ -349,34 +480,42 @@ GitHub Pages 會自動更新。`docs/.nojekyll` 由建置程式產生，用來�
 
 `python build.py` 會檢查：
 
-- JSON 語法與 BOM
+- 三個 JSON 檔是否都存在，且外層結構正確
+- JSON 語法與 BOM（會指出是哪一個檔案、第幾行）
 - 世界線、角色、事件的必填欄位
 - 重複的 id、未知的世界線／角色
 - 年份是否落在 `startYear`–`endYear` 之間
-- `lane` 是否重複或不連續
-- `row` 是否為正整數，以及同一列、同一側是否佔用到同一個 `lane`
+- `lane` 是否在每個 `variant` 內重複或缺少（左右兩側都必須有 1、2、3 版本，每版剛好兩位角色、lane 1 與 2）
+- `row` 是否為正整數，以及每個左右組合中，同一列、同一側是否佔用到同一個 `lane`
 - 同一列是否有多個交會事件
 - 背景圖是否存在、格式是否支援，以及背景 `start`／`end` 是否在年份範圍內
 - 連結是否使用允許的格式（`http(s)`、`mailto`、`#`、`/`、`./`、`../`）
+- `variantSwitches` 是否為每個世界線都提供 `1`、`2`、`3` 的 `true`／`false`，且每個世界線至少開啟一個版本
 
-錯誤訊息會指出位置，例如：
+`csv_to_events.py` 在寫入 `events.json` 前會先檢查 CSV 的欄位、角色 id、年份、`row`、`endYear`、`tone`、`links` 與重複 id；有錯時不會覆寫 JSON。轉換完成後仍建議再跑一次 `python build.py`，讓 `build.py` 檢查完整的版面與事件衝突。
+
+錯誤訊息會標示來源檔案，例如：
 
 ```text
-events[7].characters[0]：找不到角色「i016-x」
+events.json：events[7].characters[0]：找不到角色「i016-x」
+characters.json：characters[1].lane：必須是 1 以上的整數
+site.json：timelineBackground.baseImage：找不到圖片 ...
 ```
 
 常見原因：
 
+- 三個檔案少了一個，或 `site.json` 不是物件、`characters.json`／`events.json` 的 `characters`／`events` 不是陣列。
 - JSON 最後一項多了逗號，或使用了單引號。
 - 角色 `id` 與事件裡的引用不一致。
 - `characters` 中的角色分屬左右兩側，卻預期它是一般事件——這其實會變成「交會」卡片。
 - 同一列、同一側的兩個事件佔用到同一個 `lane`；請改 `row` 或 lane。
 - 同一列有多個交會事件；中央欄同一列只能放一張交會卡。
 - 事件年份超過目前年份；若是未來事件，請調整 `site.endYear`。
+- 版本按鈕壓灰不能按：檢查 `site.json` 的 `variantSwitches`，將對應版本改成 `true`，再執行 `python build.py`。
 
 ## 替換示範內容
 
-`data/story.json` 中目前的角色與事件都是虛構示範。
+`data/site.json`、`data/characters.json`、`data/events.csv`／`data/events.json` 中目前的內容都是虛構示範。
 直接替換 `title`、`intro`、角色簡介與事件內容即可；不需要改 Python。
 
 ## 授權

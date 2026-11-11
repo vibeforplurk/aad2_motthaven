@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """平行時空角色年表——靜態網站產生器。
 
+資料拆成三份 JSON，建置時彙整：
+    data/site.json         網站標題、版頭、世界線、背景與頁尾
+    data/characters.json   角色介紹
+    data/events.json       時間軸事件
+
 用法：
-    python build.py                 # 讀取 data/story.json，輸出到 docs/
-    python build.py --data other.json --out public
+    python build.py
+    python build.py --data-dir other-data --out public
 
 只用 Python 標準函式庫，不需要安裝任何套件。
 資料驗證失敗時會列出所有問題，不會產出半套網站。
@@ -16,7 +21,7 @@ import json
 import re
 import shutil
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from html import escape
 from pathlib import Path
@@ -24,7 +29,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
-DEFAULT_DATA = DATA_DIR / "story.json"
+DEFAULT_DATA_DIR = DATA_DIR
 DEFAULT_OUT = ROOT / "docs"
 SITE_DIR = ROOT / "site"
 
@@ -54,6 +59,7 @@ class Character:
     id: str
     code: str
     name: str
+    variant: int
     link: str
     watermark: str
     role: str
@@ -133,6 +139,7 @@ class Story:
     worlds: tuple[World, ...]
     characters: tuple[Character, ...]
     events: tuple[Event, ...]
+    variant_switches: dict[str, dict[int, bool]]
     warnings: tuple[str, ...] = ()
     background: TimelineBackground | None = None
 
@@ -142,6 +149,41 @@ class Story:
 
     def characters_on(self, side: str) -> tuple[Character, ...]:
         return tuple(c for c in self.characters if c.world.side == side)
+
+    def characters_for(self, side: str, variant: int) -> tuple[Character, ...]:
+        return tuple(
+            c
+            for c in self.characters
+            if c.world.side == side and c.variant == variant
+        )
+
+    def variants_on(self, side: str) -> tuple[int, ...]:
+        return tuple(
+            sorted({c.variant for c in self.characters if c.world.side == side})
+        )
+
+    def variant_world(self, side: str) -> World | None:
+        return next((world for world in self.worlds if world.side == side), None)
+
+    def is_variant_enabled(self, side: str, variant: int) -> bool:
+        world = self.variant_world(side)
+        if world is None:
+            return True
+        return self.variant_switches.get(world.id, {}).get(variant, True)
+
+    def enabled_variants_on(self, side: str) -> tuple[int, ...]:
+        return tuple(
+            variant
+            for variant in self.variants_on(side)
+            if self.is_variant_enabled(side, variant)
+        )
+
+    def default_pair(self) -> tuple[int, int]:
+        left_variants = self.enabled_variants_on("left")
+        right_variants = self.enabled_variants_on("right")
+        left = left_variants[0] if left_variants else 1
+        right = right_variants[0] if right_variants else 1
+        return left, right
 
     def lanes_on(self, side: str) -> int:
         chars = self.characters_on(side)
@@ -402,6 +444,71 @@ def parse_worlds(raw: object, problems: Problems) -> tuple[World, ...]:
     return tuple(worlds)
 
 
+def parse_variant_switches(
+    raw: object,
+    worlds: tuple[World, ...],
+    problems: Problems,
+) -> dict[str, dict[int, bool]]:
+    """讀取每個世界線 1／2／3 版本的開關；缺少設定時預設全部開啟。"""
+    defaults = {
+        world.id: {variant: True for variant in (1, 2, 3)}
+        for world in worlds
+    }
+    if raw is None:
+        return defaults
+    if not isinstance(raw, dict):
+        problems.error("variantSwitches", "必須是物件（{ ... }）")
+        return defaults
+
+    world_ids = {world.id for world in worlds}
+    for key in raw:
+        if key not in world_ids:
+            problems.error("variantSwitches", f"未知的世界線「{key}」")
+
+    result: dict[str, dict[int, bool]] = {}
+    for world in worlds:
+        item = raw.get(world.id)
+        if item is None:
+            problems.error(
+                "variantSwitches",
+                f"缺少世界線「{world.id}」的版本開關",
+            )
+            result[world.id] = defaults[world.id]
+            continue
+        data = as_mapping(item, f"variantSwitches.{world.id}", problems)
+        switches: dict[int, bool] = {}
+        for variant in (1, 2, 3):
+            key = str(variant)
+            if key not in data:
+                problems.error(
+                    f"variantSwitches.{world.id}",
+                    f"缺少 variant {variant} 的 true／false",
+                )
+                switches[variant] = True
+                continue
+            value = data[key]
+            if not isinstance(value, bool):
+                problems.error(
+                    f"variantSwitches.{world.id}.{variant}",
+                    "必須是 true 或 false",
+                )
+                value = True
+            switches[variant] = value
+        for key in data:
+            if key not in {"1", "2", "3"}:
+                problems.error(
+                    f"variantSwitches.{world.id}",
+                    f"未知的 variant 鍵「{key}」（只接受 1、2、3）",
+                )
+        if not any(switches.values()):
+            problems.error(
+                f"variantSwitches.{world.id}",
+                "至少要開啟一個版本",
+            )
+        result[world.id] = switches
+    return result
+
+
 def parse_characters(
     raw: object, worlds: tuple[World, ...], problems: Problems
 ) -> tuple[Character, ...]:
@@ -411,7 +518,20 @@ def parse_characters(
 
     world_by_id = {world.id: world for world in worlds}
     parsed: list[
-        tuple[dict, str, str, str, str, str, str, str, str, World, int | None]
+        tuple[
+            dict,
+            str,
+            str,
+            str,
+            str,
+            str,
+            str,
+            str,
+            str,
+            int,
+            World,
+            int | None,
+        ]
     ] = []
     seen_ids: set[str] = set()
 
@@ -425,6 +545,14 @@ def parse_characters(
             seen_ids.add(char_id)
         code = as_text(data.get("code"), f"{path}.code", problems, required=True)
         name = as_text(data.get("name"), f"{path}.name", problems, required=True)
+        variant = as_int(
+            data.get("variant", 1),
+            f"{path}.variant",
+            problems,
+            default=1,
+        )
+        if variant not in (1, 2, 3):
+            problems.error(f"{path}.variant", "必須是 1、2 或 3")
         link = as_text(data.get("link"), f"{path}.link", problems)
         if link and not valid_url(link):
             problems.error(
@@ -460,16 +588,34 @@ def parse_characters(
                 problems.error(f"{path}.lane", "必須是 1 以上的整數")
                 lane = None
         parsed.append(
-            (data, path, char_id, code, name, link, watermark, role, summary, world, lane)
+            (
+                data,
+                path,
+                char_id,
+                code,
+                name,
+                link,
+                watermark,
+                role,
+                summary,
+                variant,
+                world,
+                lane,
+            )
         )
 
-    # 先保留手動指定的 lane，再把未指定的角色補進最小的空位。
-    used: dict[str, set[int]] = {side: set() for side in SIDES}
-    for *_, world, lane in parsed:
+    # 同一個 world side + variant 內，lane 必須是 1、2（主角色在內、搭檔在外）。
+    used: dict[tuple[str, int], set[int]] = {}
+    for *_, variant, world, lane in parsed:
         if lane is not None:
-            if lane in used[world.side]:
-                problems.error("characters", f"{world.side} 側的 lane {lane} 重複")
-            used[world.side].add(lane)
+            key = (world.side, variant)
+            lane_set = used.setdefault(key, set())
+            if lane in lane_set:
+                problems.error(
+                    "characters",
+                    f"{world.side} 側 variant {variant} 的 lane {lane} 重複",
+                )
+            lane_set.add(lane)
 
     characters: list[Character] = []
     for (
@@ -482,20 +628,23 @@ def parse_characters(
         watermark,
         role,
         summary,
+        variant,
         world,
         lane,
     ) in parsed:
         if lane is None:
+            lane_set = used.setdefault((world.side, variant), set())
             candidate = 1
-            while candidate in used[world.side]:
+            while candidate in lane_set:
                 candidate += 1
             lane = candidate
-            used[world.side].add(lane)
+            lane_set.add(lane)
         characters.append(
             Character(
                 id=char_id,
                 code=code,
                 name=name,
+                variant=variant,
                 link=link,
                 watermark=watermark,
                 role=role,
@@ -506,17 +655,29 @@ def parse_characters(
         )
 
     for side in SIDES:
-        lanes = sorted(used[side])
-        if not lanes:
+        side_characters = [c for c in characters if c.world.side == side]
+        if not side_characters:
             problems.error("characters", f"{side} 側沒有任何角色")
             continue
-        if lanes != list(range(1, len(lanes) + 1)):
+        variants = sorted({character.variant for character in side_characters})
+        if variants != [1, 2, 3]:
             problems.error(
                 "characters",
-                f"{side} 側的 lane 必須從 1 開始連續編號，目前是 {lanes}",
+                f"{side} 側的 variant 必須是 1、2、3，目前是 {variants}",
             )
-        if len(lanes) > 4:
-            problems.warn("characters", f"{side} 側有 {len(lanes)} 個角色，版面可能過於擁擠")
+        for variant in (1, 2, 3):
+            variant_characters = [
+                character
+                for character in side_characters
+                if character.variant == variant
+            ]
+            lanes = sorted(character.lane for character in variant_characters)
+            if len(variant_characters) != 2 or lanes != [1, 2]:
+                problems.error(
+                    "characters",
+                    f"{side} 側 variant {variant} 必須剛好有兩個角色，"
+                    f"lane 分別是 1 與 2，目前是 {lanes or '無'}",
+                )
 
     return tuple(characters)
 
@@ -638,11 +799,66 @@ def parse_events(
     return tuple(events)
 
 
-def validate_event_rows(events: tuple[Event, ...], problems: Problems) -> None:
-    """檢查手動指定的 row 是否有「同一列卻佔用同一欄」的衝突。"""
+def selected_ids_for_pair(
+    characters: tuple[Character, ...],
+    left_variant: int,
+    right_variant: int,
+) -> set[str]:
+    return {
+        character.id
+        for character in characters
+        if (
+            character.world.side == "left"
+            and character.variant == left_variant
+        )
+        or (
+            character.world.side == "right"
+            and character.variant == right_variant
+        )
+    }
+
+
+def event_for_pair(event: Event, selected_ids: set[str]) -> Event | None:
+    """只保留目前組合實際參與的角色，並重新判定單側／交會。"""
+    participants = tuple(
+        character
+        for character in event.characters
+        if character.id in selected_ids
+    )
+    if not participants:
+        return None
+    sides = {character.world.side for character in participants}
+    side = None if len(sides) == 2 else next(iter(sides))
+    return replace(event, characters=participants, side=side)
+
+
+def events_for_pair(story: Story, left_variant: int, right_variant: int) -> list[Event]:
+    selected_ids = selected_ids_for_pair(
+        story.characters, left_variant, right_variant
+    )
+    result: list[Event] = []
+    for event in story.events:
+        variant = event_for_pair(event, selected_ids)
+        if variant is not None:
+            result.append(variant)
+    return result
+
+
+def validate_event_rows(
+    events: tuple[Event, ...],
+    characters: tuple[Character, ...],
+    problems: Problems,
+) -> None:
+    """檢查手動指定的 row 在每個左右組合中是否會撞欄。"""
     by_year: dict[int, list[Event]] = {}
     for event in events:
         by_year.setdefault(event.year, []).append(event)
+
+    pair_variants = [
+        (left, right)
+        for left in (1, 2, 3)
+        for right in (1, 2, 3)
+    ]
 
     for year in sorted(by_year):
         year_events = by_year[year]
@@ -661,42 +877,59 @@ def validate_event_rows(events: tuple[Event, ...], problems: Problems) -> None:
 
         for row_key in sorted(groups):
             group = groups[row_key]
-            bridges = [event for event in group if event.side is None]
-            if len(bridges) > 1:
-                ids = "、".join(event.id for event in bridges)
-                problems.error(
-                    f"events（{year} 年·row {row_key}）",
-                    f"同一列只能有一個交會事件；同一列有：{ids}",
-                )
+            for left, right in pair_variants:
+                selected_ids = selected_ids_for_pair(characters, left, right)
+                visible = [
+                    variant
+                    for variant in (
+                        event_for_pair(event, selected_ids)
+                        for event in group
+                    )
+                    if variant is not None
+                ]
+                if len(visible) < 2:
+                    continue
 
-            for side in SIDES:
-                occupied: dict[int, str] = (
-                    {1: bridges[0].id} if bridges else {}
-                )
-                for event in group:
-                    if event.side is None:
-                        continue
-                    lanes = [
-                        character.lane
-                        for character in event.characters
-                        if character.world.side == side
-                    ]
-                    if not lanes:
-                        continue
-                    low, high = min(lanes), max(lanes)
-                    for lane in range(low, high + 1):
-                        if lane in occupied:
-                            problems.error(
-                                f"events（{year} 年·row {row_key}）",
-                                f"{side} 側 lane {lane} 重疊："
-                                f"{event.id} 與 {occupied[lane]}",
-                            )
-                        else:
-                            occupied[lane] = event.id
+                pair_label = f"I016-{left} / I065-{right}"
+                bridges = [event for event in visible if event.side is None]
+                if len(bridges) > 1:
+                    ids = "、".join(event.id for event in bridges)
+                    problems.error(
+                        f"events（{year} 年·row {row_key}·{pair_label}）",
+                        f"同一列只能有一個交會事件；同一列有：{ids}",
+                    )
+
+                for side in SIDES:
+                    occupied: dict[int, str] = (
+                        {1: bridges[0].id} if bridges else {}
+                    )
+                    for event in visible:
+                        if event.side is None:
+                            continue
+                        lanes = [
+                            character.lane
+                            for character in event.characters
+                            if character.world.side == side
+                        ]
+                        if not lanes:
+                            continue
+                        low, high = min(lanes), max(lanes)
+                        for lane in range(low, high + 1):
+                            if lane in occupied:
+                                problems.error(
+                                    f"events（{year} 年·row {row_key}·{pair_label}）",
+                                    f"{side} 側 lane {lane} 重疊："
+                                    f"{event.id} 與 {occupied[lane]}",
+                                )
+                            else:
+                                occupied[lane] = event.id
 
 
 def parse_background_image(
-    value: object, path: str, problems: Problems
+    value: object,
+    path: str,
+    problems: Problems,
+    image_dir: Path,
 ) -> tuple[Path, str] | None:
     name = as_text(value, path, problems, required=True)
     if not name:
@@ -706,7 +939,7 @@ def parse_background_image(
     if normalized.startswith("data/"):
         normalized = normalized[5:]
     if "/" in normalized or normalized in {"", ".", ".."}:
-        problems.error(path, "請把圖片放在 data/ 資料夾，這裡只填檔名（例如 map.jpg）")
+        problems.error(path, "請把圖片放在資料資料夾，這裡只填檔名（例如 map.jpg）")
         return None
     if not BACKGROUND_NAME.fullmatch(normalized):
         problems.error(path, "檔名只能使用英數、底線、連字號與點")
@@ -716,7 +949,7 @@ def parse_background_image(
         problems.error(path, "格式必須是 .jpg、.jpeg、.png、.webp、.avif 或 .gif")
         return None
 
-    source = DATA_DIR / normalized
+    source = image_dir / normalized
     if not source.is_file():
         problems.error(path, f"找不到圖片 {source}")
         return None
@@ -750,14 +983,20 @@ def parse_background_boundary(
 
 
 def parse_background(
-    raw: object, site: Site, problems: Problems
+    raw: object,
+    site: Site,
+    problems: Problems,
+    image_dir: Path,
 ) -> TimelineBackground | None:
     if raw is None:
         return None
 
     data = as_mapping(raw, "timelineBackground", problems)
     base = parse_background_image(
-        data.get("baseImage"), "timelineBackground.baseImage", problems
+        data.get("baseImage"),
+        "timelineBackground.baseImage",
+        problems,
+        image_dir,
     )
     base_opacity = as_ratio(
         data.get("baseOpacity"),
@@ -776,7 +1015,10 @@ def parse_background(
         path = f"timelineBackground.segments[{index}]"
         item_data = as_mapping(item, path, problems)
         image = parse_background_image(
-            item_data.get("image"), f"{path}.image", problems
+            item_data.get("image"),
+            f"{path}.image",
+            problems,
+            image_dir,
         )
         opacity = as_ratio(
             item_data.get("opacity"),
@@ -826,7 +1068,7 @@ def parse_background(
     )
 
 
-def load_story(path: Path) -> Story:
+def read_json_file(path: Path) -> object:
     try:
         raw_text = path.read_text(encoding="utf-8-sig")
     except FileNotFoundError as exc:
@@ -835,30 +1077,122 @@ def load_story(path: Path) -> Story:
         raise DataError([f"無法讀取資料檔 {path}：{exc}"], []) from exc
 
     try:
-        raw = json.loads(raw_text)
+        return json.loads(raw_text)
     except json.JSONDecodeError as exc:
         raise DataError(
             [f"{path} 第 {exc.lineno} 行、第 {exc.colno} 欄：JSON 格式錯誤——{exc.msg}"],
             [],
         ) from exc
 
-    if not isinstance(raw, dict):
-        raise DataError(["資料檔最外層必須是物件（{ ... }）"], [])
+
+def prefix_source_files(
+    messages: list[str],
+    site_name: str,
+    characters_name: str,
+    events_name: str,
+) -> list[str]:
+    """把 site.xxx／characters[...]／events[...] 錯誤標上來源檔名。"""
+    prefixed = []
+    for message in messages:
+        if message.startswith(("site", "worlds", "timelineBackground", "variantSwitches")):
+            prefixed.append(f"{site_name}：{message}")
+        elif message.startswith("characters"):
+            prefixed.append(f"{characters_name}：{message}")
+        elif message.startswith("events"):
+            prefixed.append(f"{events_name}：{message}")
+        else:
+            prefixed.append(message)
+    return prefixed
+
+
+def load_story(data_dir: Path) -> Story:
+    site_path = data_dir / "site.json"
+    characters_path = data_dir / "characters.json"
+    events_path = data_dir / "events.json"
+
+    missing = [
+        path
+        for path in (site_path, characters_path, events_path)
+        if not path.is_file()
+    ]
+    if missing:
+        raise DataError(
+            [f"找不到資料檔：{path}" for path in missing],
+            [],
+        )
+
+    site_payload = read_json_file(site_path)
+    characters_payload = read_json_file(characters_path)
+    events_payload = read_json_file(events_path)
+
+    if not isinstance(site_payload, dict):
+        raise DataError(
+            [f"{site_path}：最外層必須是物件（{{ ... }}）"],
+            [],
+        )
+
+    characters_raw = (
+        characters_payload.get("characters")
+        if isinstance(characters_payload, dict)
+        else characters_payload
+    )
+    events_raw = (
+        events_payload.get("events")
+        if isinstance(events_payload, dict)
+        else events_payload
+    )
+
+    raw = {
+        "site": site_payload.get("site"),
+        "timelineBackground": site_payload.get("timelineBackground"),
+        "variantSwitches": site_payload.get("variantSwitches"),
+        "worlds": site_payload.get("worlds"),
+        "characters": characters_raw,
+        "events": events_raw,
+    }
 
     problems = Problems()
     site = parse_site(raw.get("site"), problems)
-    background = parse_background(raw.get("timelineBackground"), site, problems)
+    background = parse_background(
+        raw.get("timelineBackground"),
+        site,
+        problems,
+        data_dir,
+    )
     worlds = parse_worlds(raw.get("worlds"), problems)
+    variant_switches = parse_variant_switches(
+        raw.get("variantSwitches"),
+        worlds,
+        problems,
+    )
     characters = parse_characters(raw.get("characters"), worlds, problems)
     events = parse_events(raw.get("events"), characters, site, problems)
-    validate_event_rows(events, problems)
-    problems.raise_if_errors()
+    validate_event_rows(events, characters, problems)
+
+    warnings = prefix_source_files(
+        problems.warnings,
+        site_path.name,
+        characters_path.name,
+        events_path.name,
+    )
+    if problems.errors:
+        raise DataError(
+            prefix_source_files(
+                problems.errors,
+                site_path.name,
+                characters_path.name,
+                events_path.name,
+            ),
+            warnings,
+        )
+
     return Story(
         site=site,
         worlds=worlds,
         characters=characters,
         events=events,
-        warnings=tuple(problems.warnings),
+        variant_switches=variant_switches,
+        warnings=tuple(warnings),
         background=background,
     )
 
@@ -1028,6 +1362,7 @@ def render_hero(site: Site, worlds: tuple[World, ...]) -> str:
 
 def render_cast(story: Story) -> str:
     slots = story.slots
+    default_left, default_right = story.default_pair()
     cards = []
     for character in story.characters:
         side = character.world.side
@@ -1036,6 +1371,10 @@ def render_cast(story: Story) -> str:
             if side == "left"
             else slots + 1 + character.lane
         )
+        is_default = character.variant == (
+            default_left if side == "left" else default_right
+        )
+        hidden = "" if is_default else " hidden"
         name = esc(character.name)
         if character.link:
             external = urlsplit(character.link).scheme.lower() in {"http", "https"}
@@ -1048,7 +1387,7 @@ def render_cast(story: Story) -> str:
             )
             name = f'<a href="{esc(character.link)}"{attrs}>{name}{arrow}</a>'
         cards.append(
-            f"""<article class="char-card char-card--{side} tone--{character.world.tone}" style="--col-start:{column};--col-end:{column + 1}">
+            f"""<article class="char-card char-card--{side} tone--{character.world.tone}" data-world="{esc(character.world.id)}" data-variant="{character.variant}" style="--col-start:{column};--col-end:{column + 1}"{hidden}>
         <span class="char-card__watermark" aria-hidden="true">{esc(character.watermark)}</span>
         <p class="char-card__code">{esc(character.code)}</p>
         <h3 class="char-card__name">{name}</h3>
@@ -1063,27 +1402,64 @@ def render_cast(story: Story) -> str:
 </section>"""
 
 
+def render_version_controls(story: Story) -> str:
+    default_left, default_right = story.default_pair()
+    groups = []
+    for side, world_id in (("left", "I016"), ("right", "I065")):
+        buttons = []
+        default_variant = default_left if side == "left" else default_right
+        for variant in story.variants_on(side):
+            characters = story.characters_for(side, variant)
+            primary = next(
+                (character for character in characters if character.lane == 1),
+                characters[0] if characters else None,
+            )
+            code = primary.code if primary else f"{world_id}-{variant}"
+            enabled = story.is_variant_enabled(side, variant)
+            pressed = "true" if variant == default_variant and enabled else "false"
+            disabled = ""
+            extra_class = ""
+            title = ""
+            if not enabled:
+                disabled = ' disabled aria-disabled="true"'
+                extra_class = " is-disabled"
+                title = ' title="此版本目前未開放"'
+            buttons.append(
+                f'<button type="button" class="pair-btn{extra_class}" '
+                f'data-pair-side="{side}" data-pair-variant="{variant}" '
+                f'aria-pressed="{pressed}"{disabled}{title}>{esc(code)}</button>'
+            )
+        groups.append(
+            f'<div class="pair-group" data-world="{world_id}" '
+            f'role="group" aria-label="{world_id} 版本">'
+            f'<div class="pair-group__buttons">{"".join(buttons)}</div>'
+            "</div>"
+        )
+    return (
+        '<div class="version-controls" role="group" aria-label="時間軸版本">'
+        '<span class="version-controls__label">時間軸版本</span>'
+        f'{"".join(groups)}'
+        "</div>"
+    )
+
+
 def render_toolbar(story: Story) -> str:
+    default_left, default_right = story.default_pair()
+    default_events = events_for_pair(story, default_left, default_right)
+    default_years = sorted({event.year for event in default_events})
+    if not default_years:
+        default_years = [story.site.start_year]
     options = []
-    for year in story.years:
+    for year in default_years:
         label = f"{year}（現在）" if year == story.site.end_year else str(year)
         options.append(f'<option value="{year}">{label}</option>')
-    focus_buttons = [
-        '<button type="button" class="btn" data-focus-side="all" aria-pressed="true">全部</button>'
-    ]
-    for world in story.worlds:
-        focus_buttons.append(
-            f'<button type="button" class="btn" data-focus-side="{world.side}" '
-            f'aria-pressed="false" title="{esc(world.name)}｜{esc(world.note)}">'
-            f"{esc(world.id)}</button>"
-        )
+    version_controls = render_version_controls(story)
     return f"""<div class="topbar">
   <div class="topbar__inner wrap">
     <div class="year-readout">
       <span class="year-readout__label">YEAR</span>
-      <span class="year-readout__value" id="current-year">{story.site.start_year}</span>
+      <span class="year-readout__value" id="current-year">{default_years[0]}</span>
     </div>
-    <p class="topbar__hint">{story.site.start_year}–{story.site.end_year} · 向下閱讀，或跳到指定年份</p>
     <div class="controls">
       <label class="jump">
         <span class="sr-only">跳到指定年份</span>
@@ -1091,10 +1467,7 @@ def render_toolbar(story: Story) -> str:
           {''.join(options)}
         </select>
       </label>
-      <button type="button" class="btn" id="compact-toggle" aria-controls="timeline" aria-pressed="false"><span class="when-wide">隱藏空白年份</span><span class="when-narrow">精簡</span></button>
-      <div class="focus-group" role="group" aria-label="聚焦世界線">
-        {''.join(focus_buttons)}
-      </div>
+      {version_controls}
     </div>
   </div>
 </div>"""
@@ -1190,20 +1563,27 @@ def render_entry(
       </article>"""
 
 
-def render_band(story: Story, year: int, now_year: int) -> str:
-    events = [event for event in story.events if event.year == year]
-    has_content = bool(events)
-    classes = ["band", "band--content" if has_content else "band--empty"]
+def render_band(
+    year: int,
+    events: list[Event],
+    slots: int,
+    now_year: int,
+    suffix: str,
+) -> str:
+    if not events:
+        return ""
+
+    classes = ["band", "band--content"]
     if year == now_year:
         classes.append("band--now")
 
     now_label = '<span class="sr-only">（現在）</span>' if year == now_year else ""
     year_label = (
-        f'<h2 class="band__year" id="year-label-{year}">'
+        f'<h2 class="band__year" id="year-label-{year}-{suffix}">'
         f'<span class="band__year-value">{year}</span>{now_label}</h2>'
     )
 
-    placed = layout_band(events, story.slots)
+    placed = layout_band(events, slots)
     order_by_id = {event.id: index for index, event in enumerate(events)}
 
     def mobile_sort_key(item: Placed) -> tuple[int, int, int, int]:
@@ -1220,7 +1600,7 @@ def render_band(story: Story, year: int, now_year: int) -> str:
         render_entry(item.event, item, index + 1)
         for index, item in enumerate(placed)
     )
-    return f"""<div class="{' '.join(classes)}" id="year-{year}" data-year="{year}">
+    return f"""<div class="{' '.join(classes)}" id="year-{year}-{suffix}" data-year="{year}">
     {year_label}
     {entries_html}
   </div>"""
@@ -1255,17 +1635,49 @@ def render_background_layers(story: Story) -> str:
 
 def render_timeline(story: Story) -> str:
     backgrounds = render_background_layers(story)
-    bands = "\n  ".join(
-        render_band(story, year, story.site.end_year) for year in story.years
-    )
+    default_left, default_right = story.default_pair()
+    variants = []
+    for left in story.variants_on("left"):
+        for right in story.variants_on("right"):
+            suffix = f"l{left}r{right}"
+            events = [
+                replace(event, id=f"{event.id}-{suffix}")
+                for event in events_for_pair(story, left, right)
+            ]
+            by_year: dict[int, list[Event]] = {}
+            for event in events:
+                by_year.setdefault(event.year, []).append(event)
+            bands = "\n  ".join(
+                render_band(
+                    year,
+                    by_year[year],
+                    story.slots,
+                    story.site.end_year,
+                    suffix,
+                )
+                for year in sorted(by_year)
+            )
+            if not bands:
+                bands = '<p class="timeline-variant__empty">這個組合目前沒有事件。</p>'
+            hidden = (
+                ""
+                if left == default_left and right == default_right
+                else " hidden"
+            )
+            variants.append(
+                f'<div class="timeline-variant" data-left="{left}" data-right="{right}"{hidden}>\n'
+                f"  {bands}\n"
+                f"</div>"
+            )
+
     return f"""<div class="timeline" id="timeline" role="region" style="--slots:{story.slots}" data-start-year="{story.site.start_year}" data-end-year="{story.site.end_year}" aria-label="{story.site.start_year} 年至 {story.site.end_year} 年角色年表">
   {backgrounds}
-  {bands}
+  {chr(10).join(variants)}
 </div>"""
 
 
 def render_footer(story: Story) -> str:
-    note = story.site.footer or "以 Python 靜態產生；資料與版面分離，可直接編輯 data/story.json。"
+    note = story.site.footer or "以 Python 靜態產生；資料與版面分離，可直接編輯 data/ 下的 site.json、characters.json、events.json。"
     stamp = datetime.now().strftime("%Y-%m-%d")
     return f"""<footer class="site-footer">
   <div class="wrap site-footer__inner">
@@ -1344,13 +1756,19 @@ def main(argv: list[str] | None = None) -> int:
                 pass
 
     parser = argparse.ArgumentParser(
-        description="把 data/story.json 產生為可直接放到 GitHub Pages 的靜態網站。"
+        description=(
+            "彙整 data/site.json、characters.json、events.json，"
+            "產生可直接放到 GitHub Pages 的靜態網站。"
+        )
     )
     parser.add_argument(
-        "--data",
+        "--data-dir",
         type=Path,
-        default=DEFAULT_DATA,
-        help=f"資料檔路徑（預設：{DEFAULT_DATA}）",
+        default=DEFAULT_DATA_DIR,
+        help=(
+            "資料資料夾，需包含 site.json、characters.json、events.json "
+            f"（預設：{DEFAULT_DATA_DIR}）"
+        ),
     )
     parser.add_argument(
         "--out",
@@ -1361,7 +1779,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        story = load_story(args.data)
+        story = load_story(args.data_dir)
         write_site(story, args.out)
     except DataError as exc:
         for warning in exc.warnings:
@@ -1374,6 +1792,9 @@ def main(argv: list[str] | None = None) -> int:
 
     print("✓ 網站已產生")
     print(f"  輸出：{args.out / 'index.html'}")
+    print(
+        f"  資料：{args.data_dir / 'site.json'} + characters.json + events.json"
+    )
     print(
         f"  角色 {len(story.characters)} · 事件 {len(story.events)} · "
         f"年份 {story.site.start_year}–{story.site.end_year}"
